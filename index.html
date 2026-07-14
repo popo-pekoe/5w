@@ -115,7 +115,6 @@
     }
     .heart-btn.liked { color: #ff6b6b; }
 
-    /* モーダル（拡大画面）のスタイル */
     #modal {
         display: none;
         position: fixed;
@@ -150,7 +149,6 @@
         width: 50px; height: 50px;
         display: flex; justify-content: center; align-items: center;
     }
-    /* 横スクロールギャラリー */
     .modal-gallery {
         display: flex;
         overflow-x: auto;
@@ -172,7 +170,17 @@
     .modal-title { font-size: 2rem; font-weight: 800; margin: 0 0 10px 0; color: #ff6b6b; }
     .modal-comment { font-size: 1.2rem; margin: 10px 0 0 0; line-height: 1.5; font-weight: 500; }
     
-    #loading { font-size: 2rem; color: #666; margin-top: 50px; }
+    #loading { font-size: 1.5rem; color: #666; margin-top: 50px; font-weight: bold; }
+    
+    /* バージョン表示用スタイル */
+    .version-display {
+        position: fixed;
+        bottom: 10px;
+        right: 15px;
+        color: #aaa;
+        font-size: 0.9rem;
+        font-family: monospace;
+    }
 </style>
 </head>
 <body>
@@ -194,8 +202,7 @@
     <div id="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
-            <div class="modal-gallery" id="modal-gallery">
-                </div>
+            <div class="modal-gallery" id="modal-gallery"></div>
             <div class="modal-info">
                 <span class="card-category" id="modal-category"></span>
                 <h2 class="modal-title" id="modal-title"></h2>
@@ -204,9 +211,11 @@
         </div>
     </div>
 
+    <div class="version-display">v1.01</div>
+
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
-    const spreadsheetUrl = 'ここにコピーしたURLを貼り付けてください';
+    const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';
     // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
     let data = [];
@@ -214,8 +223,11 @@
     let showOnlyLiked = false;
 
     function loadData() {
-        if (spreadsheetUrl.includes('https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';')) {
-            document.getElementById('loading').innerText = 'エラー: スプレッドシートのURLを設定してください。';
+        const loadingEl = document.getElementById('loading');
+        
+        if (spreadsheetUrl.includes('ここにコピーしたURL')) {
+            loadingEl.style.color = 'red';
+            loadingEl.innerText = 'エラー: コード内の spreadsheetUrl にスプレッドシートのURLを設定してください。';
             return;
         }
 
@@ -224,22 +236,37 @@
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
-                data = results.data.map((item, index) => {
-                    // カンマ区切りのURLを配列（リスト）に変換する
-                    const images = item.img ? item.img.split(',') : [];
-                    return {
-                        id: index + 1,
-                        type: item.type ? item.type.trim() : '',
-                        title: item.title ? item.title.trim() : '',
-                        category: item.category ? item.category.trim() : '',
-                        comment: item.comment ? item.comment.trim() : '',
-                        images: images,
-                        liked: false
-                    };
-                });
-                
-                document.getElementById('loading').style.display = 'none';
-                renderCards();
+                try {
+                    // もしCSVの1行目（ヘッダー）が全く取得できていない場合のエラー検知
+                    if (!results.meta.fields || results.meta.fields.length === 0) {
+                        throw new Error("CSVの形式がおかしいか、データが空です。");
+                    }
+
+                    data = results.data.map((item, index) => {
+                        const images = item.img ? String(item.img).split(',') : [];
+                        return {
+                            id: index + 1,
+                            type: item.type ? String(item.type).trim() : '',
+                            title: item.title ? String(item.title).trim() : '',
+                            category: item.category ? String(item.category).trim() : '',
+                            comment: item.comment ? String(item.comment).trim() : '',
+                            images: images,
+                            liked: false
+                        };
+                    });
+                    
+                    loadingEl.style.display = 'none';
+                    renderCards();
+                } catch (e) {
+                    loadingEl.style.color = 'red';
+                    loadingEl.innerText = 'データの処理中にエラーが発生しました: ' + e.message;
+                    console.error(e);
+                }
+            },
+            error: function(err) {
+                loadingEl.style.color = 'red';
+                loadingEl.innerText = 'CSVの読み込みに失敗しました。URLや公開設定を確認してください。';
+                console.error("PapaParse Error:", err);
             }
         });
     }
@@ -251,14 +278,12 @@
         data.forEach(item => {
             if (item.type !== currentTab) return;
             if (showOnlyLiked && !item.liked) return;
-            if (item.images.length === 0) return; // 画像がない場合はスキップ
+            if (item.images.length === 0) return;
 
             const card = document.createElement('div');
             card.className = 'card';
             
             const heartClass = item.liked ? 'fa-solid fa-heart liked' : 'fa-solid fa-heart';
-            
-            // 1枚目の画像をサムネイルとして使用
             const thumbImg = item.images[0];
 
             card.innerHTML = `
@@ -284,7 +309,6 @@
         renderCards();
     }
 
-    // ハートボタンを押したときにモーダルが開かないように event.stopPropagation() を追加
     function toggleLike(event, id) {
         event.stopPropagation();
         const item = data.find(d => d.id === id);
@@ -307,12 +331,10 @@
         renderCards();
     }
 
-    // モーダルを開いて、複数の写真をセットする
     function openModal(id) {
         const item = data.find(d => d.id === id);
         if (!item) return;
 
-        // ギャラリーの画像を生成
         const gallery = document.getElementById('modal-gallery');
         gallery.innerHTML = '';
         item.images.forEach(imgUrl => {
@@ -327,8 +349,6 @@
         document.getElementById('modal-comment').innerText = item.comment || '';
         
         document.getElementById('modal').style.display = 'flex';
-        
-        // ギャラリーのスクロール位置を一番左に戻す
         gallery.scrollLeft = 0;
     }
 
