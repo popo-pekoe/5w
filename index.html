@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>えらんで！プレゼンター</title>
-<!-- かわいい丸ゴシックフォントを読み込み -->
+<title>えらんで！プレゼンター (スプレッドシート版)</title>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
-<!-- アイコン（星やハート）を読み込み -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
     body {
         font-family: 'M PLUS Rounded 1c', sans-serif;
@@ -22,7 +21,6 @@
         margin-top: 10px;
         margin-bottom: 20px;
     }
-    /* タブ（あそぶ・たべる） */
     .tabs {
         display: flex;
         justify-content: center;
@@ -43,7 +41,6 @@
     .tab-btn.active.play { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
     .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
     
-    /* 絞り込みボタン */
     .filter-btn {
         font-size: 1.5rem;
         padding: 10px 20px;
@@ -61,7 +58,6 @@
         box-shadow: 0 0 10px rgba(224, 49, 49, 0.5);
     }
 
-    /* タイル一覧 */
     .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -89,7 +85,6 @@
         padding: 15px;
         margin: 0;
     }
-    /* ハートボタン */
     .heart-btn {
         position: absolute;
         top: 10px;
@@ -109,7 +104,6 @@
     }
     .heart-btn.liked { color: #ff6b6b; }
 
-    /* 拡大モーダル */
     #modal {
         display: none;
         position: fixed;
@@ -140,6 +134,11 @@
         cursor: pointer;
         font-weight: bold;
     }
+    #loading {
+        font-size: 2rem;
+        color: #666;
+        margin-top: 50px;
+    }
 </style>
 </head>
 <body>
@@ -155,11 +154,9 @@
         <i class="fa-solid fa-heart"></i> お気に入りだけみる
     </button>
 
-    <div class="grid" id="cardGrid">
-        <!-- ここにカードがJSで作られます -->
-    </div>
+    <div id="loading">データを よみこんでいます...</div>
+    <div class="grid" id="cardGrid"></div>
 
-    <!-- 拡大表示用モーダル -->
     <div id="modal">
         <span class="close-btn" onclick="closeModal()">&times;</span>
         <img id="modal-img" src="" alt="">
@@ -167,35 +164,56 @@
     </div>
 
 <script>
-    // ダミーデータ（後でこれをスプレッドシート等から取得するようにします）
-    const data = [
-        { id: 1, type: 'play', title: 'おおきなこうえん', img: 'https://images.unsplash.com/photo-1605371924599-2d0365da1ae0?w=600&q=80', liked: false },
-        { id: 2, type: 'play', title: 'すいぞくかん', img: 'https://images.unsplash.com/photo-1582967788606-a171c1080cb0?w=600&q=80', liked: false },
-        { id: 3, type: 'play', title: 'ゆうえんち', img: 'https://images.unsplash.com/photo-1513885045260-6b3086b24c17?w=600&q=80', liked: false },
-        { id: 4, type: 'play', title: 'どうぶつえん', img: 'https://images.unsplash.com/photo-1534567153574-2b12153a87f0?w=600&q=80', liked: false },
-        { id: 5, type: 'eat', title: 'ハンバーグ', img: 'https://images.unsplash.com/photo-1525648199074-cee30ba79a4a?w=600&q=80', liked: false },
-        { id: 6, type: 'eat', title: 'おすし', img: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80', liked: false },
-        { id: 7, type: 'eat', title: 'オムライス', img: 'https://images.unsplash.com/photo-1614961908865-98305c4883fb?w=600&q=80', liked: false },
-        { id: 8, type: 'eat', title: 'うどん', img: 'https://images.unsplash.com/photo-1618889482923-38250401a84e?w=600&q=80', liked: false }
-    ];
+    // ーーー【設定】ここにスプレッドシートで取得したCSVのURLを貼り付けてください ーーー
+    const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';
+    // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
+    let data = [];
     let currentTab = 'play';
     let showOnlyLiked = false;
 
-    // 画面を描画する関数
+    // スプレッドシートからデータを取得する関数
+    function loadData() {
+        if (spreadsheetUrl.includes('ここにコピーしたURL')) {
+            document.getElementById('loading').innerText = 'エラー: スプレッドシートのURLを設定してください。';
+            return;
+        }
+
+        Papa.parse(spreadsheetUrl, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                // 読み込んだデータにIDと初期のいいね状態（liked: false）を追加
+                data = results.data.map((item, index) => ({
+                    id: index + 1,
+                    type: item.type ? item.type.trim() : '',
+                    title: item.title ? item.title.trim() : '',
+                    img: item.img ? item.img.trim() : '',
+                    liked: false
+                }));
+                
+                document.getElementById('loading').style.display = 'none';
+                renderCards();
+            },
+            error: function(err) {
+                document.getElementById('loading').innerText = 'データの読み込みに失敗しました。';
+                console.error(err);
+            }
+        });
+    }
+
     function renderCards() {
         const grid = document.getElementById('cardGrid');
-        grid.innerHTML = ''; // 一旦空にする
+        grid.innerHTML = '';
 
         data.forEach(item => {
-            // タブの判定と、お気に入り絞り込みの判定
             if (item.type !== currentTab) return;
             if (showOnlyLiked && !item.liked) return;
 
             const card = document.createElement('div');
             card.className = 'card';
             
-            // ハートの色付け
             const heartClass = item.liked ? 'fa-solid fa-heart liked' : 'fa-solid fa-heart';
 
             card.innerHTML = `
@@ -209,7 +227,6 @@
         });
     }
 
-    // タブ切り替え
     function changeTab(tab) {
         currentTab = tab;
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -217,7 +234,6 @@
         renderCards();
     }
 
-    // いいね（ハート）を切り替え
     function toggleLike(id) {
         const item = data.find(d => d.id === id);
         if (item) {
@@ -226,7 +242,6 @@
         }
     }
 
-    // お気に入りだけ表示の切り替え
     function toggleFilter() {
         showOnlyLiked = !showOnlyLiked;
         const btn = document.getElementById('filterBtn');
@@ -240,25 +255,22 @@
         renderCards();
     }
 
-    // モーダル（拡大）を開く
     function openModal(imgSrc, title) {
         document.getElementById('modal-img').src = imgSrc;
         document.getElementById('modal-title').innerText = title;
         document.getElementById('modal').style.display = 'flex';
     }
 
-    // モーダルを閉じる
     function closeModal() {
         document.getElementById('modal').style.display = 'none';
     }
 
-    // モーダルの背景クリックでも閉じる
     document.getElementById('modal').addEventListener('click', function(e) {
         if (e.target === this) closeModal();
     });
 
-    // 最初に一回描画
-    renderCards();
+    // ページが開かれたら自動でスプレッドシートを読み込む
+    window.onload = loadData;
 </script>
 
 </body>
