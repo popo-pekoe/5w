@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>えらんで！プレゼンター (スプレッドシート版)</title>
+<title>えらんで！プレゼンター</title>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -14,22 +14,23 @@
         margin: 0;
         padding: 20px;
         text-align: center;
+        color: #333;
     }
     h1 {
         color: #ff6b6b;
-        font-size: 3rem;
+        font-size: 2.5rem;
         margin-top: 10px;
         margin-bottom: 20px;
     }
     .tabs {
         display: flex;
         justify-content: center;
-        gap: 20px;
-        margin-bottom: 30px;
+        gap: 15px;
+        margin-bottom: 20px;
     }
     .tab-btn {
-        font-size: 2rem;
-        padding: 10px 40px;
+        font-size: 1.5rem;
+        padding: 10px 30px;
         border-radius: 50px;
         border: 4px solid #ccc;
         background-color: white;
@@ -42,7 +43,7 @@
     .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
     
     .filter-btn {
-        font-size: 1.5rem;
+        font-size: 1.2rem;
         padding: 10px 20px;
         border-radius: 20px;
         border: none;
@@ -51,18 +52,15 @@
         cursor: pointer;
         font-family: inherit;
         font-weight: 800;
-        margin-bottom: 30px;
+        margin-bottom: 20px;
     }
-    .filter-btn.filtering {
-        background-color: #e03131;
-        box-shadow: 0 0 10px rgba(224, 49, 49, 0.5);
-    }
+    .filter-btn.filtering { background-color: #e03131; box-shadow: 0 0 10px rgba(224, 49, 49, 0.5); }
 
     .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 20px;
-        padding: 0 20px;
+        padding: 0 10px;
     }
     .card {
         background: white;
@@ -71,25 +69,37 @@
         box-shadow: 0 8px 15px rgba(0,0,0,0.1);
         position: relative;
         transition: transform 0.2s;
+        cursor: pointer;
     }
     .card:hover { transform: translateY(-5px); }
     .card img {
         width: 100%;
         height: 200px;
         object-fit: cover;
-        cursor: pointer;
+    }
+    .card-info {
+        padding: 15px;
+        text-align: left;
     }
     .card-title {
-        font-size: 1.5rem;
+        font-size: 1.4rem;
         font-weight: 800;
-        padding: 15px;
-        margin: 0;
+        margin: 0 0 5px 0;
+    }
+    .card-category {
+        display: inline-block;
+        background-color: #f1f3f5;
+        color: #495057;
+        font-size: 0.9rem;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-weight: 800;
     }
     .heart-btn {
         position: absolute;
         top: 10px;
         right: 10px;
-        background: rgba(255,255,255,0.8);
+        background: rgba(255,255,255,0.9);
         border: none;
         border-radius: 50%;
         width: 50px;
@@ -101,44 +111,68 @@
         align-items: center;
         justify-content: center;
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        z-index: 10;
     }
     .heart-btn.liked { color: #ff6b6b; }
 
+    /* モーダル（拡大画面）のスタイル */
     #modal {
         display: none;
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.8);
+        background: rgba(0,0,0,0.85);
         z-index: 1000;
         align-items: center;
         justify-content: center;
-        flex-direction: column;
     }
-    #modal img {
-        max-width: 90%;
-        max-height: 80%;
+    .modal-content {
+        background: #fff;
+        width: 90%;
+        max-width: 800px;
         border-radius: 20px;
-        border: 5px solid white;
-    }
-    #modal-title {
-        color: white;
-        font-size: 2.5rem;
-        margin-top: 20px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        max-height: 90vh;
     }
     .close-btn {
         position: absolute;
-        top: 20px;
-        right: 30px;
-        color: white;
-        font-size: 4rem;
+        top: 10px;
+        right: 20px;
+        color: #333;
+        font-size: 3rem;
         cursor: pointer;
         font-weight: bold;
+        z-index: 10;
+        background: rgba(255,255,255,0.7);
+        border-radius: 50%;
+        width: 50px; height: 50px;
+        display: flex; justify-content: center; align-items: center;
     }
-    #loading {
-        font-size: 2rem;
-        color: #666;
-        margin-top: 50px;
+    /* 横スクロールギャラリー */
+    .modal-gallery {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        height: 400px;
+        background: #eee;
     }
+    .modal-gallery img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        scroll-snap-align: center;
+        flex-shrink: 0;
+    }
+    .modal-info {
+        padding: 20px;
+        text-align: left;
+    }
+    .modal-title { font-size: 2rem; font-weight: 800; margin: 0 0 10px 0; color: #ff6b6b; }
+    .modal-comment { font-size: 1.2rem; margin: 10px 0 0 0; line-height: 1.5; font-weight: 500; }
+    
+    #loading { font-size: 2rem; color: #666; margin-top: 50px; }
 </style>
 </head>
 <body>
@@ -158,23 +192,29 @@
     <div class="grid" id="cardGrid"></div>
 
     <div id="modal">
-        <span class="close-btn" onclick="closeModal()">&times;</span>
-        <img id="modal-img" src="" alt="">
-        <div id="modal-title"></div>
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div class="modal-gallery" id="modal-gallery">
+                </div>
+            <div class="modal-info">
+                <span class="card-category" id="modal-category"></span>
+                <h2 class="modal-title" id="modal-title"></h2>
+                <p class="modal-comment" id="modal-comment"></p>
+            </div>
+        </div>
     </div>
 
 <script>
-    // ーーー【設定】ここにスプレッドシートで取得したCSVのURLを貼り付けてください ーーー
-    const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';
-    // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
+    // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
+    const spreadsheetUrl = 'ここにコピーしたURLを貼り付けてください';
+    // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
     let data = [];
     let currentTab = 'play';
     let showOnlyLiked = false;
 
-    // スプレッドシートからデータを取得する関数
     function loadData() {
-        if (spreadsheetUrl.includes('ここにコピーしたURL')) {
+        if (spreadsheetUrl.includes('https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';')) {
             document.getElementById('loading').innerText = 'エラー: スプレッドシートのURLを設定してください。';
             return;
         }
@@ -184,21 +224,22 @@
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
-                // 読み込んだデータにIDと初期のいいね状態（liked: false）を追加
-                data = results.data.map((item, index) => ({
-                    id: index + 1,
-                    type: item.type ? item.type.trim() : '',
-                    title: item.title ? item.title.trim() : '',
-                    img: item.img ? item.img.trim() : '',
-                    liked: false
-                }));
+                data = results.data.map((item, index) => {
+                    // カンマ区切りのURLを配列（リスト）に変換する
+                    const images = item.img ? item.img.split(',') : [];
+                    return {
+                        id: index + 1,
+                        type: item.type ? item.type.trim() : '',
+                        title: item.title ? item.title.trim() : '',
+                        category: item.category ? item.category.trim() : '',
+                        comment: item.comment ? item.comment.trim() : '',
+                        images: images,
+                        liked: false
+                    };
+                });
                 
                 document.getElementById('loading').style.display = 'none';
                 renderCards();
-            },
-            error: function(err) {
-                document.getElementById('loading').innerText = 'データの読み込みに失敗しました。';
-                console.error(err);
             }
         });
     }
@@ -210,18 +251,27 @@
         data.forEach(item => {
             if (item.type !== currentTab) return;
             if (showOnlyLiked && !item.liked) return;
+            if (item.images.length === 0) return; // 画像がない場合はスキップ
 
             const card = document.createElement('div');
             card.className = 'card';
             
             const heartClass = item.liked ? 'fa-solid fa-heart liked' : 'fa-solid fa-heart';
+            
+            // 1枚目の画像をサムネイルとして使用
+            const thumbImg = item.images[0];
 
             card.innerHTML = `
-                <button class="heart-btn ${item.liked ? 'liked' : ''}" onclick="toggleLike(${item.id})">
+                <button class="heart-btn ${item.liked ? 'liked' : ''}" onclick="toggleLike(event, ${item.id})">
                     <i class="${heartClass}"></i>
                 </button>
-                <img src="${item.img}" onclick="openModal('${item.img}', '${item.title}')">
-                <p class="card-title">${item.title}</p>
+                <div onclick="openModal(${item.id})">
+                    <img src="${thumbImg}" alt="${item.title}">
+                    <div class="card-info">
+                        ${item.category ? `<span class="card-category">${item.category}</span>` : ''}
+                        <h3 class="card-title">${item.title}</h3>
+                    </div>
+                </div>
             `;
             grid.appendChild(card);
         });
@@ -234,7 +284,9 @@
         renderCards();
     }
 
-    function toggleLike(id) {
+    // ハートボタンを押したときにモーダルが開かないように event.stopPropagation() を追加
+    function toggleLike(event, id) {
+        event.stopPropagation();
         const item = data.find(d => d.id === id);
         if (item) {
             item.liked = !item.liked;
@@ -255,10 +307,29 @@
         renderCards();
     }
 
-    function openModal(imgSrc, title) {
-        document.getElementById('modal-img').src = imgSrc;
-        document.getElementById('modal-title').innerText = title;
+    // モーダルを開いて、複数の写真をセットする
+    function openModal(id) {
+        const item = data.find(d => d.id === id);
+        if (!item) return;
+
+        // ギャラリーの画像を生成
+        const gallery = document.getElementById('modal-gallery');
+        gallery.innerHTML = '';
+        item.images.forEach(imgUrl => {
+            const img = document.createElement('img');
+            img.src = imgUrl.trim();
+            gallery.appendChild(img);
+        });
+
+        document.getElementById('modal-title').innerText = item.title;
+        document.getElementById('modal-category').innerText = item.category || '';
+        document.getElementById('modal-category').style.display = item.category ? 'inline-block' : 'none';
+        document.getElementById('modal-comment').innerText = item.comment || '';
+        
         document.getElementById('modal').style.display = 'flex';
+        
+        // ギャラリーのスクロール位置を一番左に戻す
+        gallery.scrollLeft = 0;
     }
 
     function closeModal() {
@@ -269,7 +340,6 @@
         if (e.target === this) closeModal();
     });
 
-    // ページが開かれたら自動でスプレッドシートを読み込む
     window.onload = loadData;
 </script>
 
