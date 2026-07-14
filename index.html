@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>えらんで！プレゼンター</title>
+<!-- かわいい丸ゴシックフォントを読み込み -->
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<!-- アイコン（星やハート）を読み込み -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    body {
+        font-family: 'M PLUS Rounded 1c', sans-serif;
+        background-color: #fdf6e3;
+        margin: 0;
+        padding: 20px;
+        text-align: center;
+    }
+    h1 {
+        color: #ff6b6b;
+        font-size: 3rem;
+        margin-top: 10px;
+        margin-bottom: 20px;
+    }
+    /* タブ（あそぶ・たべる） */
+    .tabs {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    .tab-btn {
+        font-size: 2rem;
+        padding: 10px 40px;
+        border-radius: 50px;
+        border: 4px solid #ccc;
+        background-color: white;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 800;
+        transition: 0.2s;
+    }
+    .tab-btn.active.play { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
+    .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
+    
+    /* 絞り込みボタン */
+    .filter-btn {
+        font-size: 1.5rem;
+        padding: 10px 20px;
+        border-radius: 20px;
+        border: none;
+        background-color: #ff8787;
+        color: white;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 800;
+        margin-bottom: 30px;
+    }
+    .filter-btn.filtering {
+        background-color: #e03131;
+        box-shadow: 0 0 10px rgba(224, 49, 49, 0.5);
+    }
+
+    /* タイル一覧 */
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+        padding: 0 20px;
+    }
+    .card {
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        position: relative;
+        transition: transform 0.2s;
+    }
+    .card:hover { transform: translateY(-5px); }
+    .card img {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        cursor: pointer;
+    }
+    .card-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        padding: 15px;
+        margin: 0;
+    }
+    /* ハートボタン */
+    .heart-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255,255,255,0.8);
+        border: none;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        font-size: 2rem;
+        color: #ccc;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .heart-btn.liked { color: #ff6b6b; }
+
+    /* 拡大モーダル */
+    #modal {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+    #modal img {
+        max-width: 90%;
+        max-height: 80%;
+        border-radius: 20px;
+        border: 5px solid white;
+    }
+    #modal-title {
+        color: white;
+        font-size: 2.5rem;
+        margin-top: 20px;
+    }
+    .close-btn {
+        position: absolute;
+        top: 20px;
+        right: 30px;
+        color: white;
+        font-size: 4rem;
+        cursor: pointer;
+        font-weight: bold;
+    }
+</style>
+</head>
+<body>
+
+    <h1>✨ どこにいく？ なにたべる？ ✨</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active play" onclick="changeTab('play')">🎡 あそぶ</button>
+        <button class="tab-btn eat" onclick="changeTab('eat')">🍔 たべる</button>
+    </div>
+
+    <button id="filterBtn" class="filter-btn" onclick="toggleFilter()">
+        <i class="fa-solid fa-heart"></i> お気に入りだけみる
+    </button>
+
+    <div class="grid" id="cardGrid">
+        <!-- ここにカードがJSで作られます -->
+    </div>
+
+    <!-- 拡大表示用モーダル -->
+    <div id="modal">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <img id="modal-img" src="" alt="">
+        <div id="modal-title"></div>
+    </div>
+
+<script>
+    // ダミーデータ（後でこれをスプレッドシート等から取得するようにします）
+    const data = [
+        { id: 1, type: 'play', title: 'おおきなこうえん', img: 'https://images.unsplash.com/photo-1605371924599-2d0365da1ae0?w=600&q=80', liked: false },
+        { id: 2, type: 'play', title: 'すいぞくかん', img: 'https://images.unsplash.com/photo-1582967788606-a171c1080cb0?w=600&q=80', liked: false },
+        { id: 3, type: 'play', title: 'ゆうえんち', img: 'https://images.unsplash.com/photo-1513885045260-6b3086b24c17?w=600&q=80', liked: false },
+        { id: 4, type: 'play', title: 'どうぶつえん', img: 'https://images.unsplash.com/photo-1534567153574-2b12153a87f0?w=600&q=80', liked: false },
+        { id: 5, type: 'eat', title: 'ハンバーグ', img: 'https://images.unsplash.com/photo-1525648199074-cee30ba79a4a?w=600&q=80', liked: false },
+        { id: 6, type: 'eat', title: 'おすし', img: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80', liked: false },
+        { id: 7, type: 'eat', title: 'オムライス', img: 'https://images.unsplash.com/photo-1614961908865-98305c4883fb?w=600&q=80', liked: false },
+        { id: 8, type: 'eat', title: 'うどん', img: 'https://images.unsplash.com/photo-1618889482923-38250401a84e?w=600&q=80', liked: false }
+    ];
+
+    let currentTab = 'play';
+    let showOnlyLiked = false;
+
+    // 画面を描画する関数
+    function renderCards() {
+        const grid = document.getElementById('cardGrid');
+        grid.innerHTML = ''; // 一旦空にする
+
+        data.forEach(item => {
+            // タブの判定と、お気に入り絞り込みの判定
+            if (item.type !== currentTab) return;
+            if (showOnlyLiked && !item.liked) return;
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            // ハートの色付け
+            const heartClass = item.liked ? 'fa-solid fa-heart liked' : 'fa-solid fa-heart';
+
+            card.innerHTML = `
+                <button class="heart-btn ${item.liked ? 'liked' : ''}" onclick="toggleLike(${item.id})">
+                    <i class="${heartClass}"></i>
+                </button>
+                <img src="${item.img}" onclick="openModal('${item.img}', '${item.title}')">
+                <p class="card-title">${item.title}</p>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    // タブ切り替え
+    function changeTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelector('.tab-btn.' + tab).classList.add('active');
+        renderCards();
+    }
+
+    // いいね（ハート）を切り替え
+    function toggleLike(id) {
+        const item = data.find(d => d.id === id);
+        if (item) {
+            item.liked = !item.liked;
+            renderCards();
+        }
+    }
+
+    // お気に入りだけ表示の切り替え
+    function toggleFilter() {
+        showOnlyLiked = !showOnlyLiked;
+        const btn = document.getElementById('filterBtn');
+        if (showOnlyLiked) {
+            btn.classList.add('filtering');
+            btn.innerHTML = '<i class="fa-solid fa-heart"></i> ぜんぶみる';
+        } else {
+            btn.classList.remove('filtering');
+            btn.innerHTML = '<i class="fa-solid fa-heart"></i> お気に入りだけみる';
+        }
+        renderCards();
+    }
+
+    // モーダル（拡大）を開く
+    function openModal(imgSrc, title) {
+        document.getElementById('modal-img').src = imgSrc;
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal').style.display = 'flex';
+    }
+
+    // モーダルを閉じる
+    function closeModal() {
+        document.getElementById('modal').style.display = 'none';
+    }
+
+    // モーダルの背景クリックでも閉じる
+    document.getElementById('modal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+
+    // 最初に一回描画
+    renderCards();
+</script>
+
+</body>
+</html>
