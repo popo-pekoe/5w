@@ -8,179 +8,43 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
-    body {
-        font-family: 'M PLUS Rounded 1c', sans-serif;
-        background-color: #fdf6e3;
-        margin: 0;
-        padding: 20px;
-        text-align: center;
-        color: #333;
-    }
-    h1 {
-        color: #ff6b6b;
-        font-size: 2.5rem;
-        margin-top: 10px;
-        margin-bottom: 20px;
-    }
-    .tabs {
-        display: flex;
-        justify-content: center;
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-    .tab-btn {
-        font-size: 1.5rem;
-        padding: 10px 30px;
-        border-radius: 50px;
-        border: 4px solid #ccc;
-        background-color: white;
-        cursor: pointer;
-        font-family: inherit;
-        font-weight: 800;
-        transition: 0.2s;
-    }
+    body { font-family: 'M PLUS Rounded 1c', sans-serif; background-color: #fdf6e3; margin: 0; padding: 20px; text-align: center; color: #333; }
+    h1 { color: #ff6b6b; font-size: 2.5rem; margin-top: 10px; margin-bottom: 20px; }
+    .tabs { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+    .tab-btn { font-size: 1.5rem; padding: 10px 30px; border-radius: 50px; border: 4px solid #ccc; background-color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: 0.2s; }
     .tab-btn.active.play { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
     .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
-    
-    .filter-btn {
-        font-size: 1.2rem;
-        padding: 10px 20px;
-        border-radius: 20px;
-        border: none;
-        background-color: #ff8787;
-        color: white;
-        cursor: pointer;
-        font-family: inherit;
-        font-weight: 800;
-        margin-bottom: 20px;
-    }
+    .filter-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; background-color: #ff8787; color: white; cursor: pointer; font-family: inherit; font-weight: 800; margin-bottom: 20px; }
     .filter-btn.filtering { background-color: #e03131; box-shadow: 0 0 10px rgba(224, 49, 49, 0.5); }
-
-    .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 20px;
-        padding: 0 10px;
-    }
-    .card {
-        background: white;
-        border-radius: 20px;
-        overflow: hidden;
-        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
-        position: relative;
-        transition: transform 0.2s;
-        cursor: pointer;
-    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; padding: 0 10px; }
+    .card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 15px rgba(0,0,0,0.1); position: relative; transition: transform 0.2s; cursor: pointer; }
     .card:hover { transform: translateY(-5px); }
-    .card img {
-        width: 100%;
-        height: 200px;
-        object-fit: cover;
-    }
-    .card-info {
-        padding: 15px;
-        text-align: left;
-    }
-    .card-title {
-        font-size: 1.4rem;
-        font-weight: 800;
-        margin: 0 0 5px 0;
-    }
-    .card-category {
-        display: inline-block;
-        background-color: #f1f3f5;
-        color: #495057;
-        font-size: 0.9rem;
-        padding: 3px 10px;
-        border-radius: 10px;
-        font-weight: 800;
-    }
-    .heart-btn {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: rgba(255,255,255,0.9);
-        border: none;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        font-size: 2rem;
-        color: #ccc;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        z-index: 10;
-    }
+    .card img { width: 100%; height: 200px; object-fit: cover; }
+    .card-info { padding: 15px; text-align: left; }
+    .card-title { font-size: 1.4rem; font-weight: 800; margin: 0 0 5px 0; }
+    .card-category { display: inline-block; background-color: #f1f3f5; color: #495057; font-size: 0.9rem; padding: 3px 10px; border-radius: 10px; font-weight: 800; }
+    .heart-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 2rem; color: #ccc; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; }
     .heart-btn.liked { color: #ff6b6b; }
-
-    #modal {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85);
-        z-index: 1000;
-        align-items: center;
-        justify-content: center;
-    }
-    .modal-content {
-        background: #fff;
-        width: 90%;
-        max-width: 800px;
-        border-radius: 20px;
-        overflow: hidden;
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        max-height: 90vh;
-    }
-    .close-btn {
-        position: absolute;
-        top: 10px;
-        right: 20px;
-        color: #333;
-        font-size: 3rem;
-        cursor: pointer;
-        font-weight: bold;
-        z-index: 10;
-        background: rgba(255,255,255,0.7);
-        border-radius: 50%;
-        width: 50px; height: 50px;
-        display: flex; justify-content: center; align-items: center;
-    }
-    .modal-gallery {
-        display: flex;
-        overflow-x: auto;
-        scroll-snap-type: x mandatory;
-        height: 400px;
-        background: #eee;
-    }
-    .modal-gallery img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        scroll-snap-align: center;
-        flex-shrink: 0;
-    }
-    .modal-info {
-        padding: 20px;
-        text-align: left;
-    }
+    
+    #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-content { background: #fff; width: 90%; max-width: 800px; border-radius: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column; max-height: 90vh; }
+    .close-btn { position: absolute; top: 10px; right: 20px; color: #333; font-size: 3rem; cursor: pointer; font-weight: bold; z-index: 10; background: rgba(255,255,255,0.7); border-radius: 50%; width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; }
+    .modal-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 400px; background: #eee; }
+    .modal-gallery img { width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; flex-shrink: 0; }
+    .modal-info { padding: 20px; text-align: left; }
     .modal-title { font-size: 2rem; font-weight: 800; margin: 0 0 10px 0; color: #ff6b6b; }
-    .modal-comment { font-size: 1.2rem; margin: 10px 0 0 0; line-height: 1.5; font-weight: 500; }
+    .modal-comment { font-size: 1.2rem; margin: 10px 0 15px 0; line-height: 1.5; font-weight: 500; }
     
+    /* リンクセクションの追加スタイル */
+    .modal-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px; border-top: 2px dashed #eee; padding-top: 15px; }
+    .link-btn { text-decoration: none; padding: 8px 15px; border-radius: 10px; font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 5px; transition: 0.2s; }
+    .link-btn:hover { opacity: 0.8; }
+    .link-map { background-color: #e3f2fd; color: #1976d2; border: 2px solid #bbdefb; }
+    .link-img { background-color: #f3e5f5; color: #7b1fa2; border: 2px solid #e1bee7; }
+    .link-web { background-color: #e8f5e9; color: #388e3c; border: 2px solid #c8e6c9; }
+
     #loading { font-size: 1.5rem; color: #666; margin-top: 50px; font-weight: bold; }
-    
-    /* バージョン表示用スタイル */
-    .version-display {
-        position: fixed;
-        bottom: 10px;
-        right: 15px;
-        color: #aaa;
-        font-size: 0.9rem;
-        font-family: monospace;
-    }
+    .version-display { position: fixed; bottom: 10px; right: 15px; color: #aaa; font-size: 0.9rem; font-family: monospace; }
 </style>
 </head>
 <body>
@@ -207,11 +71,17 @@
                 <span class="card-category" id="modal-category"></span>
                 <h2 class="modal-title" id="modal-title"></h2>
                 <p class="modal-comment" id="modal-comment"></p>
+                
+                <div class="modal-links">
+                    <a id="link-map" href="#" target="_blank" class="link-btn link-map"><i class="fa-solid fa-map-location-dot"></i> マップ</a>
+                    <a id="link-img" href="#" target="_blank" class="link-btn link-img"><i class="fa-solid fa-images"></i> しゃしん</a>
+                    <a id="link-web" href="#" target="_blank" class="link-btn link-web"><i class="fa-solid fa-globe"></i> こうしき</a>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="version-display">v1.01</div>
+    <div class="version-display">v1.02</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
@@ -224,10 +94,9 @@
 
     function loadData() {
         const loadingEl = document.getElementById('loading');
-        
         if (spreadsheetUrl.includes('ここにコピーしたURL')) {
             loadingEl.style.color = 'red';
-            loadingEl.innerText = 'エラー: コード内の spreadsheetUrl にスプレッドシートのURLを設定してください。';
+            loadingEl.innerText = 'エラー: コード内の spreadsheetUrl に設定してください。';
             return;
         }
 
@@ -237,11 +106,6 @@
             skipEmptyLines: true,
             complete: function(results) {
                 try {
-                    // もしCSVの1行目（ヘッダー）が全く取得できていない場合のエラー検知
-                    if (!results.meta.fields || results.meta.fields.length === 0) {
-                        throw new Error("CSVの形式がおかしいか、データが空です。");
-                    }
-
                     data = results.data.map((item, index) => {
                         const images = item.img ? String(item.img).split(',') : [];
                         return {
@@ -250,23 +114,17 @@
                             title: item.title ? String(item.title).trim() : '',
                             category: item.category ? String(item.category).trim() : '',
                             comment: item.comment ? String(item.comment).trim() : '',
+                            website: item.website ? String(item.website).trim() : '',
                             images: images,
                             liked: false
                         };
                     });
-                    
                     loadingEl.style.display = 'none';
                     renderCards();
                 } catch (e) {
                     loadingEl.style.color = 'red';
-                    loadingEl.innerText = 'データの処理中にエラーが発生しました: ' + e.message;
-                    console.error(e);
+                    loadingEl.innerText = 'データの処理エラー: ' + e.message;
                 }
-            },
-            error: function(err) {
-                loadingEl.style.color = 'red';
-                loadingEl.innerText = 'CSVの読み込みに失敗しました。URLや公開設定を確認してください。';
-                console.error("PapaParse Error:", err);
             }
         });
     }
@@ -282,7 +140,6 @@
 
             const card = document.createElement('div');
             card.className = 'card';
-            
             const heartClass = item.liked ? 'fa-solid fa-heart liked' : 'fa-solid fa-heart';
             const thumbImg = item.images[0];
 
@@ -348,6 +205,21 @@
         document.getElementById('modal-category').style.display = item.category ? 'inline-block' : 'none';
         document.getElementById('modal-comment').innerText = item.comment || '';
         
+        // --- 各種リンクの設定 ---
+        // マップリンク (Google Maps の検索URL)
+        document.getElementById('link-map').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.title);
+        // 写真リンク (Google 画像検索のURL)
+        document.getElementById('link-img').href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(item.title);
+        
+        // 公式リンク (データがある場合のみ表示)
+        const webBtn = document.getElementById('link-web');
+        if (item.website && item.website.startsWith('http')) {
+            webBtn.href = item.website;
+            webBtn.style.display = 'inline-flex';
+        } else {
+            webBtn.style.display = 'none';
+        }
+
         document.getElementById('modal').style.display = 'flex';
         gallery.scrollLeft = 0;
     }
