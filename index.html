@@ -1,3 +1,6 @@
+<!-- ========================================== -->
+<!-- Version: 1.06                              -->
+<!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -84,7 +87,7 @@
         </div>
     </div>
 
-    <div class="version-display">v1.04</div>
+    <div class="version-display">v1.06</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
@@ -119,6 +122,8 @@
                             comment: item.comment ? String(item.comment).trim() : '',
                             website: item.website ? String(item.website).trim() : '',
                             address: item.address ? String(item.address).trim() : '',
+                            // hide列を 0/1 として取得（空欄なら '0' 扱いにする）
+                            hide: item.hide ? String(item.hide).trim() : '0',
                             images: images,
                             liked: false
                         };
@@ -141,6 +146,8 @@
             if (item.type !== currentTab) return;
             if (showOnlyLiked && !item.liked) return;
             if (item.images.length === 0) return;
+            // 修正：hide列が '1' の場合はスキップ（非表示）
+            if (item.hide === '1') return;
 
             const card = document.createElement('div');
             card.className = 'card';
@@ -212,7 +219,6 @@
         document.getElementById('modal-category').style.display = item.category ? 'inline-block' : 'none';
         document.getElementById('modal-comment').innerText = item.comment || '';
         
-        // 修正：公式のGoogleマップ検索URLに変更しました！
         document.getElementById('link-map').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.title + ' ' + item.address);
         document.getElementById('link-img').href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(item.title);
         
