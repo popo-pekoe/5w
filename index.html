@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.08                              -->
+<!-- Version: 1.09                              -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -29,7 +29,6 @@
     .location-btn { background-color: #20c997; }
     .location-btn.active { background-color: #0ca678; box-shadow: 0 0 10px rgba(12, 166, 120, 0.5); }
 
-    /* 場所フィルターパネルのスタイル */
     #location-filter-panel { display: none; background: white; border-radius: 15px; padding: 20px; margin: 0 auto 20px auto; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: left; }
     .filter-group { margin-bottom: 15px; }
     .filter-group-title { font-size: 1.1rem; font-weight: 800; color: #495057; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-bottom: 10px; }
@@ -37,7 +36,6 @@
     .filter-checkbox { display: inline-flex; align-items: center; gap: 5px; background: #f1f3f5; padding: 5px 15px; border-radius: 20px; cursor: pointer; font-weight: 800; transition: 0.2s; user-select: none; }
     .filter-checkbox:hover { background: #e9ecef; }
     .filter-checkbox input { cursor: pointer; transform: scale(1.2); margin-right: 5px; }
-    /* チェックされたときのスタイル */
     .filter-checkbox.checked { background: #e6fcf5; color: #0ca678; border: 1px solid #20c997; }
 
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; padding: 0 10px; }
@@ -96,16 +94,12 @@
         </button>
     </div>
 
-    <!-- 場所フィルター用パネル -->
-    <div id="location-filter-panel">
-        <!-- JSでここにチェックボックスが自動生成されます -->
-    </div>
+    <div id="location-filter-panel"></div>
 
     <div id="loading">データを よみこんでいます...</div>
     <div class="grid" id="cardGrid"></div>
 
     <div id="modal">
-        <!-- 省略せずに記載 -->
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">×</span>
             <div class="modal-gallery" id="modal-gallery"></div>
@@ -122,7 +116,7 @@
         </div>
     </div>
 
-    <div class="version-display">v1.08</div>
+    <div class="version-display">v1.09</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
@@ -132,10 +126,11 @@
     let data = [];
     let currentTab = 'play';
     let showOnlyLiked = false;
-    let activeLocationFilters = new Set(); // 選択された都道府県を保存
+    let activeLocationFilters = new Set();
 
-    // エリアの定義（自動判定用）
+    // 地方と市のグループ分け定義
     const regionMap = {
+        "ちかくのエリア（市）": ["横浜市", "川崎市", "藤沢市"],
         "北海道・東北": ["北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県"],
         "関東": ["茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県"],
         "中部": ["新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県"],
@@ -144,9 +139,9 @@
         "九州・沖縄": ["福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"]
     };
 
-    function getRegion(pref) {
+    function getRegion(locationStr) {
         for (let r in regionMap) {
-            if (regionMap[r].includes(pref)) return r;
+            if (regionMap[r].includes(locationStr)) return r;
         }
         return "その他";
     }
@@ -176,10 +171,17 @@
                         const images = item.img ? String(item.img).split(',') : [];
                         const address = item.address ? String(item.address).trim() : '';
                         
-                        // 住所から「〇〇県」などの都道府県名を抜き出す
-                        let pref = '';
+                        let locations = [];
+                        
+                        // 1. 都道府県を抽出
                         const prefMatch = address.match(/(.+?[都道府県])/);
-                        if (prefMatch) pref = prefMatch[1];
+                        if (prefMatch) locations.push(prefMatch[1]);
+                        
+                        // 2. 指定された市を抽出
+                        const targetCities = ["横浜市", "川崎市", "藤沢市"];
+                        targetCities.forEach(city => {
+                            if (address.includes(city)) locations.push(city);
+                        });
 
                         return {
                             id: index + 1,
@@ -189,7 +191,7 @@
                             comment: item.comment ? String(item.comment).trim() : '',
                             website: item.website ? String(item.website).trim() : '',
                             address: address,
-                            pref: pref, // 抽出した都道府県
+                            locations: locations, // 県と市の配列
                             hide: item.hide ? String(item.hide).trim() : '0',
                             images: images,
                             liked: false
@@ -197,7 +199,7 @@
                     });
                     
                     shuffleArray(data);
-                    buildLocationFilters(); // 場所フィルターのUIを構築
+                    buildLocationFilters();
                     loadingEl.style.display = 'none';
                     renderCards();
                 } catch (e) {
@@ -208,29 +210,33 @@
         });
     }
 
-    // 場所フィルターのチェックボックスを自動生成する
     function buildLocationFilters() {
         const panel = document.getElementById('location-filter-panel');
         panel.innerHTML = '';
         
-        // 現在のデータ内に存在する都道府県だけをリストアップ（非表示データは除外）
-        const availablePrefs = [...new Set(data.filter(d => d.pref && d.hide !== '1').map(d => d.pref))];
+        // 存在する場所データ（県や市）を重複なしで集める
+        const availableLocs = new Set();
+        data.filter(d => d.hide !== '1').forEach(d => {
+            d.locations.forEach(loc => availableLocs.add(loc));
+        });
         
-        if (availablePrefs.length === 0) {
+        if (availableLocs.size === 0) {
             panel.innerHTML = '<p>ばしょのデータがありません</p>';
             return;
         }
 
-        // 地域ごとにグループ分けする
+        // 地域ごとにグループ分け
         const grouped = {};
-        availablePrefs.forEach(p => {
-            const r = getRegion(p);
+        availableLocs.forEach(loc => {
+            const r = getRegion(loc);
             if (!grouped[r]) grouped[r] = [];
-            grouped[r].push(p);
+            grouped[r].push(loc);
         });
 
-        // 画面に配置する
-        for (let r in grouped) {
+        // 画面に配置（定義された順序を保つため、regionMapのキー順に処理）
+        for (let r in regionMap) {
+            if (!grouped[r]) continue;
+            
             const groupDiv = document.createElement('div');
             groupDiv.className = 'filter-group';
             groupDiv.innerHTML = `<div class="filter-group-title">${r}</div>`;
@@ -238,14 +244,30 @@
             const labelsDiv = document.createElement('div');
             labelsDiv.className = 'filter-labels';
 
-            grouped[r].forEach(p => {
+            grouped[r].forEach(loc => {
                 const label = document.createElement('label');
                 label.className = 'filter-checkbox';
-                // チェックボックスの変更イベント
-                label.innerHTML = `<input type="checkbox" value="${p}" onchange="updateLocationFilter(this)"> ${p}`;
+                label.innerHTML = `<input type="checkbox" value="${loc}" onchange="updateLocationFilter(this)"> ${loc}`;
                 labelsDiv.appendChild(label);
             });
             
+            groupDiv.appendChild(labelsDiv);
+            panel.appendChild(groupDiv);
+        }
+        
+        // 「その他」がある場合の処理
+        if (grouped["その他"]) {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'filter-group';
+            groupDiv.innerHTML = `<div class="filter-group-title">その他</div>`;
+            const labelsDiv = document.createElement('div');
+            labelsDiv.className = 'filter-labels';
+            grouped["その他"].forEach(loc => {
+                const label = document.createElement('label');
+                label.className = 'filter-checkbox';
+                label.innerHTML = `<input type="checkbox" value="${loc}" onchange="updateLocationFilter(this)"> ${loc}`;
+                labelsDiv.appendChild(label);
+            });
             groupDiv.appendChild(labelsDiv);
             panel.appendChild(groupDiv);
         }
@@ -284,8 +306,8 @@
             if (item.images.length === 0) return;
             if (item.hide === '1') return;
             
-            // 場所フィルターの判定（1つもチェックされていない場合は全て表示、チェックがあれば一致するものだけ表示）
-            if (activeLocationFilters.size > 0 && !activeLocationFilters.has(item.pref)) return;
+            // どれか1つでもチェックされていれば、その条件に合うものを表示（OR検索）
+            if (activeLocationFilters.size > 0 && !item.locations.some(loc => activeLocationFilters.has(loc))) return;
 
             const card = document.createElement('div');
             card.className = 'card';
