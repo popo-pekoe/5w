@@ -24,10 +24,8 @@
     .card-info { padding: 15px; text-align: left; }
     .card-title { font-size: 1.4rem; font-weight: 800; margin: 0 0 5px 0; }
     
-    /* カテゴリと住所を並べるコンテナ */
     .card-meta { display: flex; gap: 10px; align-items: center; margin-bottom: 5px; flex-wrap: wrap; }
     .card-category { display: inline-block; background-color: #f1f3f5; color: #495057; font-size: 0.8rem; padding: 3px 10px; border-radius: 10px; font-weight: 800; }
-    /* 住所表示用のスタイル */
     .card-address { font-size: 0.8rem; color: #868e96; font-weight: 800; }
     
     .heart-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 2rem; color: #ccc; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; }
@@ -86,11 +84,11 @@
         </div>
     </div>
 
-    <div class="version-display">v1.03</div>
+    <div class="version-display">v1.04</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
-    const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';
+    const spreadsheetUrl = '1crhUhPl-IVsRlL4oJeG2TfA0411DKBvyBzYZubYA6i4';
     // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
     let data = [];
@@ -120,7 +118,7 @@
                             category: item.category ? String(item.category).trim() : '',
                             comment: item.comment ? String(item.comment).trim() : '',
                             website: item.website ? String(item.website).trim() : '',
-                            address: item.address ? String(item.address).trim() : '', // 住所を追加
+                            address: item.address ? String(item.address).trim() : '',
                             images: images,
                             liked: false
                         };
@@ -214,8 +212,7 @@
         document.getElementById('modal-category').style.display = item.category ? 'inline-block' : 'none';
         document.getElementById('modal-comment').innerText = item.comment || '';
         
-        // リンクの設定
-        // マップリンクはGoogle Mapsでの検索に修正
+        // 修正：公式のGoogleマップ検索URLに変更しました！
         document.getElementById('link-map').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.title + ' ' + item.address);
         document.getElementById('link-img').href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(item.title);
         
