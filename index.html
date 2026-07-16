@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.06                              -->
+<!-- Version: 1.07                              -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -17,8 +17,20 @@
     .tab-btn { font-size: 1.5rem; padding: 10px 30px; border-radius: 50px; border: 4px solid #ccc; background-color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: 0.2s; }
     .tab-btn.active.play { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
     .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
-    .filter-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; background-color: #ff8787; color: white; cursor: pointer; font-family: inherit; font-weight: 800; margin-bottom: 20px; }
+    
+    /* ボタンエリアのレイアウト調整 */
+    .action-buttons { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+    .action-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: transform 0.1s, box-shadow 0.2s; }
+    .action-btn:active { transform: scale(0.95); }
+    
+    /* お気に入りボタン */
+    .filter-btn { background-color: #ff8787; }
     .filter-btn.filtering { background-color: #e03131; box-shadow: 0 0 10px rgba(224, 49, 49, 0.5); }
+    
+    /* シャッフルボタン */
+    .shuffle-btn { background-color: #4caf50; }
+    .shuffle-btn:hover { background-color: #43a047; }
+
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; padding: 0 10px; }
     
     .card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 15px rgba(0,0,0,0.1); position: relative; transition: transform 0.2s; cursor: pointer; }
@@ -63,9 +75,15 @@
         <button class="tab-btn eat" onclick="changeTab('eat')">🍔 たべる</button>
     </div>
 
-    <button id="filterBtn" class="filter-btn" onclick="toggleFilter()">
-        <i class="fa-solid fa-heart"></i> お気に入りだけみる
-    </button>
+    <!-- アクションボタンエリア -->
+    <div class="action-buttons">
+        <button id="filterBtn" class="action-btn filter-btn" onclick="toggleFilter()">
+            <i class="fa-solid fa-heart"></i> お気に入りだけみる
+        </button>
+        <button class="action-btn shuffle-btn" onclick="shuffleCards()">
+            <i class="fa-solid fa-shuffle"></i> シャッフル！
+        </button>
+    </div>
 
     <div id="loading">データを よみこんでいます...</div>
     <div class="grid" id="cardGrid"></div>
@@ -87,7 +105,7 @@
         </div>
     </div>
 
-    <div class="version-display">v1.06</div>
+    <div class="version-display">v1.07</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
@@ -97,6 +115,14 @@
     let data = [];
     let currentTab = 'play';
     let showOnlyLiked = false;
+
+    // 配列をランダムに並び替える関数
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
 
     function loadData() {
         const loadingEl = document.getElementById('loading');
@@ -122,12 +148,15 @@
                             comment: item.comment ? String(item.comment).trim() : '',
                             website: item.website ? String(item.website).trim() : '',
                             address: item.address ? String(item.address).trim() : '',
-                            // hide列を 0/1 として取得（空欄なら '0' 扱いにする）
                             hide: item.hide ? String(item.hide).trim() : '0',
                             images: images,
                             liked: false
                         };
                     });
+                    
+                    // データを読み込んだ直後に1回シャッフルする（初期シャッフル）
+                    shuffleArray(data);
+                    
                     loadingEl.style.display = 'none';
                     renderCards();
                 } catch (e) {
@@ -146,7 +175,6 @@
             if (item.type !== currentTab) return;
             if (showOnlyLiked && !item.liked) return;
             if (item.images.length === 0) return;
-            // 修正：hide列が '1' の場合はスキップ（非表示）
             if (item.hide === '1') return;
 
             const card = document.createElement('div');
@@ -171,6 +199,12 @@
             `;
             grid.appendChild(card);
         });
+    }
+
+    // シャッフルボタンが押されたときの処理
+    function shuffleCards() {
+        shuffleArray(data);
+        renderCards();
     }
 
     function changeTab(tab) {
