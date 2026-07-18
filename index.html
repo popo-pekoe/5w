@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.10 (カテゴリ追加＆モーダルナビ対応) -->
+<!-- Version: 1.11 (アイテム/画像切替ナビUI分離) -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -14,15 +14,13 @@
     body { font-family: 'M PLUS Rounded 1c', sans-serif; background-color: #fdf6e3; margin: 0; padding: 20px; text-align: center; color: #333; }
     h1 { color: #ff6b6b; font-size: 2.5rem; margin-top: 10px; margin-bottom: 20px; }
     
-    /* タブのスタイル（スマホでも折り返して綺麗に並ぶように少し調整） */
     .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .tab-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 50px; border: 4px solid #ccc; background-color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: 0.2s; }
     
-    /* 各タブのアクティブ時の色設定 */
     .tab-btn.active.play { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
     .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
-    .tab-btn.active.go_out { border-color: #20c997; background-color: #e6fcf5; color: #087f5b; } /* 新規：お出かけ（緑系） */
-    .tab-btn.active.eat_out { border-color: #f06595; background-color: #fff0f6; color: #a61e4d; } /* 新規：外食（ピンク系） */
+    .tab-btn.active.go_out { border-color: #20c997; background-color: #e6fcf5; color: #087f5b; }
+    .tab-btn.active.eat_out { border-color: #f06595; background-color: #fff0f6; color: #a61e4d; }
     
     .action-buttons { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
     .action-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: transform 0.1s, box-shadow 0.2s; }
@@ -60,16 +58,27 @@
     .heart-btn.liked { color: #ff6b6b; }
     
     #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
-    .modal-content { background: #fff; width: 90%; max-width: 800px; border-radius: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column; max-height: 90vh; }
-    .close-btn { position: absolute; top: 10px; right: 20px; color: #333; font-size: 3rem; cursor: pointer; font-weight: bold; z-index: 10; background: rgba(255,255,255,0.7); border-radius: 50%; width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; }
+    .modal-content { background: #fff; width: 90%; max-width: 800px; border-radius: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column; max-height: 90vh; z-index: 1010; }
+    .close-btn { position: absolute; top: 10px; right: 20px; color: #333; font-size: 3rem; cursor: pointer; font-weight: bold; z-index: 100; background: rgba(255,255,255,0.7); border-radius: 50%; width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; }
     
-    /* 追加：ナビゲーションボタン（＜ ＞）のスタイル */
-    .nav-btn { position: absolute; top: 200px; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 2rem; color: #555; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 10; transition: 0.2s; font-weight: bold; }
-    .nav-btn:hover { background: #fff; transform: translateY(-50%) scale(1.1); }
-    .nav-prev { left: 10px; }
-    .nav-next { right: 10px; }
+    /* 1. アイテム切り替え用ナビボタン（<< >>）/ モーダル外側 */
+    .item-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.6); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 1.5rem; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1020; transition: 0.2s; font-weight: bold; }
+    .item-nav-btn:hover { background: rgba(0,0,0,0.9); scale: 1.1; }
+    .item-prev { left: 10px; }
+    .item-next { right: 10px; }
 
-    .modal-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 400px; background: #eee; scroll-behavior: smooth; }
+    /* 2. ギャラリー画像切り替え用ナビボタン（< >）/ モーダル内側 */
+    .gallery-wrapper { position: relative; width: 100%; height: 400px; }
+    .gallery-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 1.5rem; color: #555; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 10; transition: 0.2s; font-weight: bold; }
+    .gallery-nav-btn:hover { background: #fff; scale: 1.1; }
+    .gallery-prev { left: 10px; }
+    .gallery-next { right: 10px; }
+
+    .modal-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 100%; background: #eee; scroll-behavior: smooth; }
+    /* スクロールバーを隠す（ボタンで操作させるため見た目をスッキリ） */
+    .modal-gallery::-webkit-scrollbar { display: none; }
+    .modal-gallery { -ms-overflow-style: none; scrollbar-width: none; }
+    
     .modal-gallery img { width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; flex-shrink: 0; }
     .modal-info { padding: 20px; text-align: left; overflow-y: auto; }
     .modal-title { font-size: 2rem; font-weight: 800; margin: 0 0 10px 0; color: #ff6b6b; }
@@ -90,7 +99,6 @@
 
     <h1>✨ どこにいく？ なにたべる？ ✨</h1>
 
-    <!-- 4つのカテゴリタブに拡張 -->
     <div class="tabs">
         <button class="tab-btn active play" onclick="changeTab('play')">🎡 あそぶ</button>
         <button class="tab-btn eat" onclick="changeTab('eat')">🍔 たべる</button>
@@ -115,14 +123,25 @@
     <div id="loading">データを よみこんでいます...</div>
     <div class="grid" id="cardGrid"></div>
 
+    <!-- ポップアップ本体 -->
     <div id="modal" data-current-id="">
+        
+        <!-- 外側：アイテム切替ボタン（<< >>） -->
+        <button class="item-nav-btn item-prev" onclick="prevModal(event)">＜＜</button>
+        <button class="item-nav-btn item-next" onclick="nextModal(event)">＞＞</button>
+
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">×</span>
-            <!-- 追加：ナビゲーションボタン -->
-            <button class="nav-btn nav-prev" onclick="prevModal(event)">＜</button>
-            <button class="nav-btn nav-next" onclick="nextModal(event)">＞</button>
             
-            <div class="modal-gallery" id="modal-gallery"></div>
+            <!-- 内側：画像ギャラリー -->
+            <div class="gallery-wrapper">
+                <!-- 内側：画像切替ボタン（< >） -->
+                <button class="gallery-nav-btn gallery-prev" id="gallery-prev-btn" onclick="scrollGallery(-1, event)">＜</button>
+                <button class="gallery-nav-btn gallery-next" id="gallery-next-btn" onclick="scrollGallery(1, event)">＞</button>
+                
+                <div class="modal-gallery" id="modal-gallery"></div>
+            </div>
+            
             <div class="modal-info">
                 <span class="card-category" id="modal-category"></span>
                 <h2 class="modal-title" id="modal-title"></h2>
@@ -136,7 +155,7 @@
         </div>
     </div>
 
-    <div class="version-display">v1.10</div>
+    <div class="version-display">v1.11</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
@@ -144,12 +163,11 @@
     // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
     let data = [];
-    let currentDisplayData = []; // 追加：現在画面に表示されているカードのリスト（ナビゲーション用）
+    let currentDisplayData = []; 
     let currentTab = 'play';
     let showOnlyLiked = false;
     let activeLocationFilters = new Set();
 
-    // 地方と市のグループ分け定義
     const regionMap = {
         "ちかくのエリア（市）": ["横浜市", "川崎市", "藤沢市"],
         "北海道・東北": ["北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県"],
@@ -193,12 +211,9 @@
                         const address = item.address ? String(item.address).trim() : '';
                         
                         let locations = [];
-                        
-                        // 1. 都道府県を抽出
                         const prefMatch = address.match(/(.+?[都道府県])/);
                         if (prefMatch) locations.push(prefMatch[1]);
                         
-                        // 2. 指定された市を抽出
                         const targetCities = ["横浜市", "川崎市", "藤沢市"];
                         targetCities.forEach(city => {
                             if (address.includes(city)) locations.push(city);
@@ -316,7 +331,7 @@
     function renderCards() {
         const grid = document.getElementById('cardGrid');
         grid.innerHTML = '';
-        currentDisplayData = []; // 表示リストをリセット
+        currentDisplayData = []; 
 
         data.forEach(item => {
             if (item.type !== currentTab) return;
@@ -326,7 +341,7 @@
             
             if (activeLocationFilters.size > 0 && !item.locations.some(loc => activeLocationFilters.has(loc))) return;
 
-            currentDisplayData.push(item); // 画面に表示されるものを記録
+            currentDisplayData.push(item);
 
             const card = document.createElement('div');
             card.className = 'card';
@@ -384,7 +399,6 @@
         const item = data.find(d => d.id === id);
         if (!item) return;
         
-        // 現在開いているアイテムのIDを記録（ナビゲーション用）
         document.getElementById('modal').setAttribute('data-current-id', id);
 
         const gallery = document.getElementById('modal-gallery');
@@ -394,6 +408,17 @@
             img.src = imgUrl.trim();
             gallery.appendChild(img);
         });
+
+        // 写真が1枚だけなら画像切替ボタン（< >）を隠す
+        const galleryPrevBtn = document.getElementById('gallery-prev-btn');
+        const galleryNextBtn = document.getElementById('gallery-next-btn');
+        if (item.images.length > 1) {
+            galleryPrevBtn.style.display = 'flex';
+            galleryNextBtn.style.display = 'flex';
+        } else {
+            galleryPrevBtn.style.display = 'none';
+            galleryNextBtn.style.display = 'none';
+        }
 
         document.getElementById('modal-title').innerText = item.title;
         document.getElementById('modal-category').innerText = item.category || '';
@@ -415,35 +440,38 @@
         gallery.scrollLeft = 0;
     }
 
-    // 「＜」前のカードへ
+    // ギャラリー（画像）の横スクロール処理
+    function scrollGallery(direction, event) {
+        if (event) event.stopPropagation();
+        const gallery = document.getElementById('modal-gallery');
+        // 画像1枚分の幅を取得してスクロール
+        const scrollAmount = gallery.clientWidth; 
+        gallery.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
+    }
+
+    // アイテム（候補）の切り替え処理
     function prevModal(event) {
-        if (event) event.stopPropagation(); // 背景クリック閉じを防止
-        if (currentDisplayData.length <= 1) return; // 1件しかない場合は何もしない
+        if (event) event.stopPropagation();
+        if (currentDisplayData.length <= 1) return;
 
         const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
         let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
-        
-        // 前のインデックスを計算（最初なら一番最後にループ）
         currentIndex = (currentIndex - 1 + currentDisplayData.length) % currentDisplayData.length;
         openModal(currentDisplayData[currentIndex].id);
     }
 
-    // 「＞」次のカードへ
     function nextModal(event) {
         if (event) event.stopPropagation();
         if (currentDisplayData.length <= 1) return;
 
         const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
         let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
-        
-        // 次のインデックスを計算（最後なら一番最初にループ）
         currentIndex = (currentIndex + 1) % currentDisplayData.length;
         openModal(currentDisplayData[currentIndex].id);
     }
 
     function closeModal() { document.getElementById('modal').style.display = 'none'; }
     document.getElementById('modal').addEventListener('click', function(e) {
-        // ナビボタンやモーダルコンテンツ自体をクリックした場合は閉じない
         if (e.target === this) closeModal();
     });
 
