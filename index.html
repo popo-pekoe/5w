@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.09                              -->
+<!-- Version: 1.10 (カテゴリ追加＆モーダルナビ対応) -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -13,10 +13,16 @@
 <style>
     body { font-family: 'M PLUS Rounded 1c', sans-serif; background-color: #fdf6e3; margin: 0; padding: 20px; text-align: center; color: #333; }
     h1 { color: #ff6b6b; font-size: 2.5rem; margin-top: 10px; margin-bottom: 20px; }
-    .tabs { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
-    .tab-btn { font-size: 1.5rem; padding: 10px 30px; border-radius: 50px; border: 4px solid #ccc; background-color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: 0.2s; }
+    
+    /* タブのスタイル（スマホでも折り返して綺麗に並ぶように少し調整） */
+    .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 50px; border: 4px solid #ccc; background-color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: 0.2s; }
+    
+    /* 各タブのアクティブ時の色設定 */
     .tab-btn.active.play { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
     .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
+    .tab-btn.active.go_out { border-color: #20c997; background-color: #e6fcf5; color: #087f5b; } /* 新規：お出かけ（緑系） */
+    .tab-btn.active.eat_out { border-color: #f06595; background-color: #fff0f6; color: #a61e4d; } /* 新規：外食（ピンク系） */
     
     .action-buttons { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
     .action-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: transform 0.1s, box-shadow 0.2s; }
@@ -56,9 +62,16 @@
     #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
     .modal-content { background: #fff; width: 90%; max-width: 800px; border-radius: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column; max-height: 90vh; }
     .close-btn { position: absolute; top: 10px; right: 20px; color: #333; font-size: 3rem; cursor: pointer; font-weight: bold; z-index: 10; background: rgba(255,255,255,0.7); border-radius: 50%; width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; }
-    .modal-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 400px; background: #eee; }
+    
+    /* 追加：ナビゲーションボタン（＜ ＞）のスタイル */
+    .nav-btn { position: absolute; top: 200px; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 2rem; color: #555; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 10; transition: 0.2s; font-weight: bold; }
+    .nav-btn:hover { background: #fff; transform: translateY(-50%) scale(1.1); }
+    .nav-prev { left: 10px; }
+    .nav-next { right: 10px; }
+
+    .modal-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 400px; background: #eee; scroll-behavior: smooth; }
     .modal-gallery img { width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; flex-shrink: 0; }
-    .modal-info { padding: 20px; text-align: left; }
+    .modal-info { padding: 20px; text-align: left; overflow-y: auto; }
     .modal-title { font-size: 2rem; font-weight: 800; margin: 0 0 10px 0; color: #ff6b6b; }
     .modal-comment { font-size: 1.2rem; margin: 10px 0 15px 0; line-height: 1.5; font-weight: 500; }
     
@@ -77,9 +90,12 @@
 
     <h1>✨ どこにいく？ なにたべる？ ✨</h1>
 
+    <!-- 4つのカテゴリタブに拡張 -->
     <div class="tabs">
         <button class="tab-btn active play" onclick="changeTab('play')">🎡 あそぶ</button>
         <button class="tab-btn eat" onclick="changeTab('eat')">🍔 たべる</button>
+        <button class="tab-btn go_out" onclick="changeTab('go_out')">🚗 お出かけ</button>
+        <button class="tab-btn eat_out" onclick="changeTab('eat_out')">🍽️ 外食</button>
     </div>
 
     <div class="action-buttons">
@@ -99,9 +115,13 @@
     <div id="loading">データを よみこんでいます...</div>
     <div class="grid" id="cardGrid"></div>
 
-    <div id="modal">
+    <div id="modal" data-current-id="">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">×</span>
+            <!-- 追加：ナビゲーションボタン -->
+            <button class="nav-btn nav-prev" onclick="prevModal(event)">＜</button>
+            <button class="nav-btn nav-next" onclick="nextModal(event)">＞</button>
+            
             <div class="modal-gallery" id="modal-gallery"></div>
             <div class="modal-info">
                 <span class="card-category" id="modal-category"></span>
@@ -116,7 +136,7 @@
         </div>
     </div>
 
-    <div class="version-display">v1.09</div>
+    <div class="version-display">v1.10</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
@@ -124,6 +144,7 @@
     // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
     let data = [];
+    let currentDisplayData = []; // 追加：現在画面に表示されているカードのリスト（ナビゲーション用）
     let currentTab = 'play';
     let showOnlyLiked = false;
     let activeLocationFilters = new Set();
@@ -191,7 +212,7 @@
                             comment: item.comment ? String(item.comment).trim() : '',
                             website: item.website ? String(item.website).trim() : '',
                             address: address,
-                            locations: locations, // 県と市の配列
+                            locations: locations,
                             hide: item.hide ? String(item.hide).trim() : '0',
                             images: images,
                             liked: false
@@ -214,7 +235,6 @@
         const panel = document.getElementById('location-filter-panel');
         panel.innerHTML = '';
         
-        // 存在する場所データ（県や市）を重複なしで集める
         const availableLocs = new Set();
         data.filter(d => d.hide !== '1').forEach(d => {
             d.locations.forEach(loc => availableLocs.add(loc));
@@ -225,7 +245,6 @@
             return;
         }
 
-        // 地域ごとにグループ分け
         const grouped = {};
         availableLocs.forEach(loc => {
             const r = getRegion(loc);
@@ -233,7 +252,6 @@
             grouped[r].push(loc);
         });
 
-        // 画面に配置（定義された順序を保つため、regionMapのキー順に処理）
         for (let r in regionMap) {
             if (!grouped[r]) continue;
             
@@ -255,7 +273,6 @@
             panel.appendChild(groupDiv);
         }
         
-        // 「その他」がある場合の処理
         if (grouped["その他"]) {
             const groupDiv = document.createElement('div');
             groupDiv.className = 'filter-group';
@@ -299,6 +316,7 @@
     function renderCards() {
         const grid = document.getElementById('cardGrid');
         grid.innerHTML = '';
+        currentDisplayData = []; // 表示リストをリセット
 
         data.forEach(item => {
             if (item.type !== currentTab) return;
@@ -306,8 +324,9 @@
             if (item.images.length === 0) return;
             if (item.hide === '1') return;
             
-            // どれか1つでもチェックされていれば、その条件に合うものを表示（OR検索）
             if (activeLocationFilters.size > 0 && !item.locations.some(loc => activeLocationFilters.has(loc))) return;
+
+            currentDisplayData.push(item); // 画面に表示されるものを記録
 
             const card = document.createElement('div');
             card.className = 'card';
@@ -334,33 +353,39 @@
     }
 
     function shuffleCards() { shuffleArray(data); renderCards(); }
+    
     function changeTab(tab) {
         currentTab = tab;
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelector('.tab-btn.' + tab).classList.add('active');
         renderCards();
     }
+
     function toggleLike(event, id) {
         event.stopPropagation();
         const item = data.find(d => d.id === id);
         if (item) { item.liked = !item.liked; renderCards(); }
     }
+
     function toggleFilter() {
         showOnlyLiked = !showOnlyLiked;
         const btn = document.getElementById('filterBtn');
         if (showOnlyLiked) {
             btn.classList.add('filtering');
-            btn.innerHTML = '<i class="fa-solid fa-heart"></i> お気に入りだけ';
         } else {
             btn.classList.remove('filtering');
-            btn.innerHTML = '<i class="fa-solid fa-heart"></i> お気に入りだけ';
         }
         renderCards();
     }
 
+    // --- ポップアップ（モーダル）関連の処理 ---
+
     function openModal(id) {
         const item = data.find(d => d.id === id);
         if (!item) return;
+        
+        // 現在開いているアイテムのIDを記録（ナビゲーション用）
+        document.getElementById('modal').setAttribute('data-current-id', id);
 
         const gallery = document.getElementById('modal-gallery');
         gallery.innerHTML = '';
@@ -390,8 +415,35 @@
         gallery.scrollLeft = 0;
     }
 
+    // 「＜」前のカードへ
+    function prevModal(event) {
+        if (event) event.stopPropagation(); // 背景クリック閉じを防止
+        if (currentDisplayData.length <= 1) return; // 1件しかない場合は何もしない
+
+        const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
+        let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
+        
+        // 前のインデックスを計算（最初なら一番最後にループ）
+        currentIndex = (currentIndex - 1 + currentDisplayData.length) % currentDisplayData.length;
+        openModal(currentDisplayData[currentIndex].id);
+    }
+
+    // 「＞」次のカードへ
+    function nextModal(event) {
+        if (event) event.stopPropagation();
+        if (currentDisplayData.length <= 1) return;
+
+        const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
+        let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
+        
+        // 次のインデックスを計算（最後なら一番最初にループ）
+        currentIndex = (currentIndex + 1) % currentDisplayData.length;
+        openModal(currentDisplayData[currentIndex].id);
+    }
+
     function closeModal() { document.getElementById('modal').style.display = 'none'; }
     document.getElementById('modal').addEventListener('click', function(e) {
+        // ナビボタンやモーダルコンテンツ自体をクリックした場合は閉じない
         if (e.target === this) closeModal();
     });
 
