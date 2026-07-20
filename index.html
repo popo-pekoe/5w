@@ -227,6 +227,7 @@
                             comment: item.comment ? String(item.comment).trim() : '',
                             website: item.website ? String(item.website).trim() : '',
                             address: address,
+                            map_url: item['マップURL'] || item.map_url || item.mapUrl || '', // ★追加：スプレッドシートからマップURLを取得
                             locations: locations,
                             hide: item.hide ? String(item.hide).trim() : '0',
                             images: images,
@@ -425,7 +426,13 @@
         document.getElementById('modal-category').style.display = item.category ? 'inline-block' : 'none';
         document.getElementById('modal-comment').innerText = item.comment || '';
         
-        document.getElementById('link-map').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.title + ' ' + item.address);
+        
+        // ★修正：スプレッドシートにマップURLがあればそれを使い、無ければ名前で検索する
+        if (item.map_url && item.map_url.startsWith('http')) {
+            document.getElementById('link-map').href = item.map_url;
+        } else {
+            document.getElementById('link-map').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.title + ' ' + (item.address || ''));
+        }
         document.getElementById('link-img').href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(item.title);
         
         const webBtn = document.getElementById('link-web');
