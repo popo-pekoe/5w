@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.11 (アイテム/画像切替ナビUI分離) -->
+<!-- Version: 1.12 (自動年齢制限・ロック機能搭載) -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -12,7 +12,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
     body { font-family: 'M PLUS Rounded 1c', sans-serif; background-color: #fdf6e3; margin: 0; padding: 20px; text-align: center; color: #333; }
-    h1 { color: #ff6b6b; font-size: 2.5rem; margin-top: 10px; margin-bottom: 20px; }
+    h1 { color: #ff6b6b; font-size: 2.5rem; margin-top: 10px; margin-bottom: 5px; }
+    .age-badge { font-size: 1.3rem; font-weight: 800; color: #1864ab; background-color: #e7f5ff; padding: 5px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; border: 2px solid #74c0fc; }
     
     .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
     .tab-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 50px; border: 4px solid #ccc; background-color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: 0.2s; }
@@ -56,28 +57,31 @@
     
     .heart-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 2rem; color: #ccc; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; }
     .heart-btn.liked { color: #ff6b6b; }
+
+    /* ★ 年齢制限用のスタイル */
+    .card.restricted { opacity: 0.7; cursor: not-allowed; }
+    .card.restricted:hover { transform: none; }
+    .restricted-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.7); z-index: 5; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(3px); border-radius: 20px; }
+    .restricted-icon { font-size: 3rem; color: #adb5bd; margin-bottom: 10px; }
+    .restricted-text { font-size: 1.5rem; font-weight: 800; color: #495057; background: white; padding: 5px 20px; border-radius: 20px; border: 3px solid #dee2e6; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     
     #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
     .modal-content { background: #fff; width: 90%; max-width: 800px; border-radius: 20px; overflow: hidden; position: relative; display: flex; flex-direction: column; max-height: 90vh; z-index: 1010; }
     .close-btn { position: absolute; top: 10px; right: 20px; color: #333; font-size: 3rem; cursor: pointer; font-weight: bold; z-index: 100; background: rgba(255,255,255,0.7); border-radius: 50%; width: 50px; height: 50px; display: flex; justify-content: center; align-items: center; }
     
-    /* 1. アイテム切り替え用ナビボタン（<< >>）/ モーダル外側 */
     .item-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.6); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 1.5rem; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1020; transition: 0.2s; font-weight: bold; }
     .item-nav-btn:hover { background: rgba(0,0,0,0.9); scale: 1.1; }
     .item-prev { left: 10px; }
     .item-next { right: 10px; }
 
-    /* 2. ギャラリー画像切り替え用ナビボタン（< >）/ モーダル内側 */
     .gallery-wrapper { position: relative; width: 100%; height: 400px; }
     .gallery-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 1.5rem; color: #555; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 10; transition: 0.2s; font-weight: bold; }
     .gallery-nav-btn:hover { background: #fff; scale: 1.1; }
     .gallery-prev { left: 10px; }
     .gallery-next { right: 10px; }
 
-    .modal-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 100%; background: #eee; scroll-behavior: smooth; }
-    /* スクロールバーを隠す（ボタンで操作させるため見た目をスッキリ） */
+    .modal-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; height: 100%; background: #eee; scroll-behavior: smooth; -ms-overflow-style: none; scrollbar-width: none; }
     .modal-gallery::-webkit-scrollbar { display: none; }
-    .modal-gallery { -ms-overflow-style: none; scrollbar-width: none; }
     
     .modal-gallery img { width: 100%; height: 100%; object-fit: cover; scroll-snap-align: center; flex-shrink: 0; }
     .modal-info { padding: 20px; text-align: left; overflow-y: auto; }
@@ -98,6 +102,8 @@
 <body>
 
     <h1>✨ どこにいく？ なにたべる？ ✨</h1>
+    <!-- お子様の現在の年齢を表示するバッジ -->
+    <div class="age-badge">👦 いま <span id="display-age"></span> さい！</div>
 
     <div class="tabs">
         <button class="tab-btn active play" onclick="changeTab('play')">🎡 あそぶ</button>
@@ -123,22 +129,15 @@
     <div id="loading">データを よみこんでいます...</div>
     <div class="grid" id="cardGrid"></div>
 
-    <!-- ポップアップ本体 -->
     <div id="modal" data-current-id="">
-        
-        <!-- 外側：アイテム切替ボタン（<< >>） -->
         <button class="item-nav-btn item-prev" onclick="prevModal(event)">＜＜</button>
         <button class="item-nav-btn item-next" onclick="nextModal(event)">＞＞</button>
 
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">×</span>
-            
-            <!-- 内側：画像ギャラリー -->
             <div class="gallery-wrapper">
-                <!-- 内側：画像切替ボタン（< >） -->
                 <button class="gallery-nav-btn gallery-prev" id="gallery-prev-btn" onclick="scrollGallery(-1, event)">＜</button>
                 <button class="gallery-nav-btn gallery-next" id="gallery-next-btn" onclick="scrollGallery(1, event)">＞</button>
-                
                 <div class="modal-gallery" id="modal-gallery"></div>
             </div>
             
@@ -155,12 +154,27 @@
         </div>
     </div>
 
-    <div class="version-display">v1.11</div>
+    <div class="version-display">v1.12</div>
 
 <script>
     // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
     const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';
-    // ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
+    
+    // ★お子様の誕生日設定（ここから自動で年齢を計算します）
+    const birthYear = 2022;
+    const birthMonth = 1;
+
+    // 現在の満年齢を計算
+    const today = new Date();
+    let currentAge = today.getFullYear() - birthYear;
+    if (today.getMonth() + 1 < birthMonth) {
+        currentAge--;
+    }
+    
+    // 画面に年齢を表示
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('display-age').innerText = currentAge;
+    });
 
     let data = [];
     let currentDisplayData = []; 
@@ -227,7 +241,9 @@
                             comment: item.comment ? String(item.comment).trim() : '',
                             website: item.website ? String(item.website).trim() : '',
                             address: address,
-                            map_url: item['マップURL'] || item.map_url || item.mapUrl || '', // ★追加：スプレッドシートからマップURLを取得
+                            map_url: item['マップURL'] || item.map_url || item.mapUrl || '',
+                            // ★ 追加：スプレッドシートから対象年齢を読み取る
+                            age_limit: item['対象年齢'] || item.age_limit || item.age || '', 
                             locations: locations,
                             hide: item.hide ? String(item.hide).trim() : '0',
                             images: images,
@@ -256,10 +272,7 @@
             d.locations.forEach(loc => availableLocs.add(loc));
         });
         
-        if (availableLocs.size === 0) {
-            panel.innerHTML = '<p>ばしょのデータがありません</p>';
-            return;
-        }
+        if (availableLocs.size === 0) return;
 
         const grouped = {};
         availableLocs.forEach(loc => {
@@ -285,22 +298,6 @@
                 labelsDiv.appendChild(label);
             });
             
-            groupDiv.appendChild(labelsDiv);
-            panel.appendChild(groupDiv);
-        }
-        
-        if (grouped["その他"]) {
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'filter-group';
-            groupDiv.innerHTML = `<div class="filter-group-title">その他</div>`;
-            const labelsDiv = document.createElement('div');
-            labelsDiv.className = 'filter-labels';
-            grouped["その他"].forEach(loc => {
-                const label = document.createElement('label');
-                label.className = 'filter-checkbox';
-                label.innerHTML = `<input type="checkbox" value="${loc}" onchange="updateLocationFilter(this)"> ${loc}`;
-                labelsDiv.appendChild(label);
-            });
             groupDiv.appendChild(labelsDiv);
             panel.appendChild(groupDiv);
         }
@@ -342,18 +339,38 @@
             
             if (activeLocationFilters.size > 0 && !item.locations.some(loc => activeLocationFilters.has(loc))) return;
 
+            // ★ 年齢制限の判定ロジック
+            const minAge = parseInt(item.age_limit, 10);
+            const isRestricted = !isNaN(minAge) && currentAge < minAge;
+
+            // ※グレーアウトされていても「次の候補」として送れるようにするため、配列には追加しておく
             currentDisplayData.push(item);
 
             const card = document.createElement('div');
-            card.className = 'card';
+            card.className = isRestricted ? 'card restricted' : 'card';
             const heartClass = item.liked ? 'fa-solid fa-heart liked' : 'fa-solid fa-heart';
             const thumbImg = item.images[0];
+
+            // 制限がかかっている場合はオーバーレイを被せ、クリックできないようにする
+            let overlayHtml = '';
+            let clickAction = `onclick="openModal(${item.id})"`;
+
+            if (isRestricted) {
+                overlayHtml = `
+                    <div class="restricted-overlay">
+                        <i class="fa-solid fa-lock restricted-icon"></i>
+                        <span class="restricted-text">${minAge} さいから！</span>
+                    </div>
+                `;
+                clickAction = ''; // クリックしてモーダルを開くのをブロック
+            }
 
             card.innerHTML = `
                 <button class="heart-btn ${item.liked ? 'liked' : ''}" onclick="toggleLike(event, ${item.id})">
                     <i class="${heartClass}"></i>
                 </button>
-                <div onclick="openModal(${item.id})">
+                ${overlayHtml}
+                <div ${clickAction}>
                     <img src="${thumbImg}" alt="${item.title}">
                     <div class="card-info">
                         <div class="card-meta">
@@ -383,19 +400,6 @@
         if (item) { item.liked = !item.liked; renderCards(); }
     }
 
-    function toggleFilter() {
-        showOnlyLiked = !showOnlyLiked;
-        const btn = document.getElementById('filterBtn');
-        if (showOnlyLiked) {
-            btn.classList.add('filtering');
-        } else {
-            btn.classList.remove('filtering');
-        }
-        renderCards();
-    }
-
-    // --- ポップアップ（モーダル）関連の処理 ---
-
     function openModal(id) {
         const item = data.find(d => d.id === id);
         if (!item) return;
@@ -410,7 +414,6 @@
             gallery.appendChild(img);
         });
 
-        // 写真が1枚だけなら画像切替ボタン（< >）を隠す
         const galleryPrevBtn = document.getElementById('gallery-prev-btn');
         const galleryNextBtn = document.getElementById('gallery-next-btn');
         if (item.images.length > 1) {
@@ -426,13 +429,12 @@
         document.getElementById('modal-category').style.display = item.category ? 'inline-block' : 'none';
         document.getElementById('modal-comment').innerText = item.comment || '';
         
-        
-        // ★修正：スプレッドシートにマップURLがあればそれを使い、無ければ名前で検索する
         if (item.map_url && item.map_url.startsWith('http')) {
             document.getElementById('link-map').href = item.map_url;
         } else {
             document.getElementById('link-map').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.title + ' ' + (item.address || ''));
         }
+
         document.getElementById('link-img').href = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(item.title);
         
         const webBtn = document.getElementById('link-web');
@@ -447,33 +449,38 @@
         gallery.scrollLeft = 0;
     }
 
-    // ギャラリー（画像）の横スクロール処理
     function scrollGallery(direction, event) {
         if (event) event.stopPropagation();
         const gallery = document.getElementById('modal-gallery');
-        // 画像1枚分の幅を取得してスクロール
         const scrollAmount = gallery.clientWidth; 
         gallery.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
     }
 
-    // アイテム（候補）の切り替え処理
     function prevModal(event) {
         if (event) event.stopPropagation();
         if (currentDisplayData.length <= 1) return;
-
         const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
         let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
-        currentIndex = (currentIndex - 1 + currentDisplayData.length) % currentDisplayData.length;
+        
+        // ★ 制限がかかっているカードはスキップして次を探す
+        do {
+            currentIndex = (currentIndex - 1 + currentDisplayData.length) % currentDisplayData.length;
+        } while (currentDisplayData[currentIndex].age_limit && currentAge < parseInt(currentDisplayData[currentIndex].age_limit, 10));
+        
         openModal(currentDisplayData[currentIndex].id);
     }
 
     function nextModal(event) {
         if (event) event.stopPropagation();
         if (currentDisplayData.length <= 1) return;
-
         const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
         let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
-        currentIndex = (currentIndex + 1) % currentDisplayData.length;
+        
+        // ★ 制限がかかっているカードはスキップして次を探す
+        do {
+            currentIndex = (currentIndex + 1) % currentDisplayData.length;
+        } while (currentDisplayData[currentIndex].age_limit && currentAge < parseInt(currentDisplayData[currentIndex].age_limit, 10));
+
         openModal(currentDisplayData[currentIndex].id);
     }
 
