@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.12 (自動年齢制限・ロック機能搭載) -->
+<!-- Version: 1.13 (今日の3つ！スロット機能搭載) -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -27,12 +27,20 @@
     .action-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: transform 0.1s, box-shadow 0.2s; }
     .action-btn:active { transform: scale(0.95); }
     
+    /* ★ 新しいボタンのスタイル */
+    .slot-btn { background-color: #fcc419; color: #862e9c; }
+    .slot-btn:hover { background-color: #fab005; }
+    .slot-btn.disabled { background-color: #ccc; color: #999; cursor: not-allowed; transform: none; }
+
     .filter-btn { background-color: #ff8787; }
     .filter-btn.filtering { background-color: #e03131; box-shadow: 0 0 10px rgba(224, 49, 49, 0.5); }
     .shuffle-btn { background-color: #4caf50; }
     .shuffle-btn:hover { background-color: #43a047; }
     .location-btn { background-color: #20c997; }
     .location-btn.active { background-color: #0ca678; box-shadow: 0 0 10px rgba(12, 166, 120, 0.5); }
+
+    /* 他のボタンをグレーにする用 */
+    .action-btn.greyed-out { background-color: #ced4da !important; color: #868e96 !important; box-shadow: none !important; cursor: not-allowed; }
 
     #location-filter-panel { display: none; background: white; border-radius: 15px; padding: 20px; margin: 0 auto 20px auto; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: left; }
     .filter-group { margin-bottom: 15px; }
@@ -58,7 +66,6 @@
     .heart-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 2rem; color: #ccc; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; }
     .heart-btn.liked { color: #ff6b6b; }
 
-    /* ★ 年齢制限用のスタイル */
     .card.restricted { opacity: 0.7; cursor: not-allowed; }
     .card.restricted:hover { transform: none; }
     .restricted-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.7); z-index: 5; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(3px); border-radius: 20px; }
@@ -95,6 +102,44 @@
     .link-img { background-color: #f3e5f5; color: #7b1fa2; border: 2px solid #e1bee7; }
     .link-web { background-color: #e8f5e9; color: #388e3c; border: 2px solid #c8e6c9; }
 
+    /* =======================================
+       ★ スロットアニメーション用スタイル 
+       ======================================= */
+    #slot-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(253, 246, 227, 0.95); z-index: 2000; align-items: center; justify-content: center; flex-direction: column; }
+    
+    .slot-machine-container { background: #ffe066; padding: 20px; border-radius: 30px; border: 8px solid #f59f00; box-shadow: 0 15px 0 #e67700, 0 25px 20px rgba(0,0,0,0.3); max-width: 900px; width: 95%; text-align: center; position: relative; margin-bottom: 30px; }
+    .slot-title { color: #d9480f; font-size: 2.5rem; margin-top: 0; margin-bottom: 15px; text-shadow: 2px 2px 0 white; }
+    
+    .slot-reels { display: flex; justify-content: center; gap: 15px; background: #343a40; padding: 20px; border-radius: 15px; box-shadow: inset 0 10px 20px rgba(0,0,0,0.5); flex-wrap: wrap; }
+    
+    .reel-window { width: 250px; height: 200px; background: white; border-radius: 10px; overflow: hidden; position: relative; border: 4px solid #adb5bd; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+    /* モバイル対応 */
+    @media (max-width: 850px) { .reel-window { width: 100%; height: 120px; } .slot-reels { flex-direction: column; } .card-info { padding: 10px; } .card-title { font-size: 1.1rem; } .card img { height: 120px; } }
+
+    .reel-strip { display: flex; flex-direction: column; width: 100%; /* JSで高さを動的に変更し、transformで動かす */ transition: none; }
+    
+    /* リールの中身（カードっぽく） */
+    .reel-item { height: 200px; width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px; box-sizing: border-box; background: white; border-bottom: 2px solid #eee; }
+    @media (max-width: 850px) { .reel-item { height: 120px; flex-direction: row; gap: 10px; justify-content: flex-start; } }
+
+    .reel-item img { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; margin-bottom: 5px; }
+    @media (max-width: 850px) { .reel-item img { width: 100px; height: 100px; margin-bottom: 0; } }
+
+    .reel-item-title { font-weight: 800; font-size: 1.1rem; color: #333; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+    /* スタートボタン */
+    .slot-controls { margin-top: 25px; }
+    .spin-btn { font-size: 2rem; font-weight: 800; padding: 15px 50px; background: #fa5252; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 0 #c92a2a; transition: 0.1s; font-family: inherit; }
+    .spin-btn:active, .spin-btn.pressed { transform: translateY(8px); box-shadow: 0 0 0 #c92a2a; background: #e03131; }
+    .spin-btn:disabled { background: #adb5bd; box-shadow: 0 8px 0 #868e96; cursor: not-allowed; }
+
+    .slot-close-btn { margin-top: 20px; font-size: 1.2rem; font-weight: 800; color: #868e96; text-decoration: underline; cursor: pointer; border: none; background: none; font-family: inherit; }
+    .slot-close-btn:hover { color: #495057; }
+    
+    /* リール停止後のハイライト */
+    .reel-window.winner { border-color: #fcc419; box-shadow: 0 0 20px #fcc419, inset 0 0 10px #fcc419; animation: pulse 1s infinite alternate; cursor: pointer; }
+    @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.05); } }
+
     #loading { font-size: 1.5rem; color: #666; margin-top: 50px; font-weight: bold; }
     .version-display { position: fixed; bottom: 10px; right: 15px; color: #aaa; font-size: 0.9rem; font-family: monospace; }
 </style>
@@ -102,7 +147,6 @@
 <body>
 
     <h1>✨ どこにいく？ なにたべる？ ✨</h1>
-    <!-- お子様の現在の年齢を表示するバッジ -->
     <div class="age-badge">👦 いま <span id="display-age"></span> さい！</div>
 
     <div class="tabs">
@@ -113,6 +157,10 @@
     </div>
 
     <div class="action-buttons">
+        <!-- ★ 新しいボタンを追加 -->
+        <button id="slotBtn" class="action-btn slot-btn" onclick="openSlotMachine()">
+            <i class="fa-solid fa-gift"></i> 今日の3つ！
+        </button>
         <button id="locationBtn" class="action-btn location-btn" onclick="toggleLocationPanel()">
             <i class="fa-solid fa-map-location-dot"></i> ばしょでしぼる
         </button>
@@ -129,6 +177,31 @@
     <div id="loading">データを よみこんでいます...</div>
     <div class="grid" id="cardGrid"></div>
 
+    <!-- =======================================
+         ★ 今日の3つ！ スロットマシンUI
+         ======================================= -->
+    <div id="slot-modal">
+        <div class="slot-machine-container">
+            <h2 class="slot-title">🎰 今日の ピックアップ 🎰</h2>
+            <div class="slot-reels">
+                <div class="reel-window" id="reel-window-0">
+                    <div class="reel-strip" id="reel-0"></div>
+                </div>
+                <div class="reel-window" id="reel-window-1">
+                    <div class="reel-strip" id="reel-1"></div>
+                </div>
+                <div class="reel-window" id="reel-window-2">
+                    <div class="reel-strip" id="reel-2"></div>
+                </div>
+            </div>
+            <div class="slot-controls">
+                <button class="spin-btn" id="spinBtn" onclick="startSlotSpin()">スタート！</button>
+            </div>
+        </div>
+        <button class="slot-close-btn" onclick="closeSlotMachine()">もどる</button>
+    </div>
+
+    <!-- 通常の詳細ポップアップ -->
     <div id="modal" data-current-id="">
         <button class="item-nav-btn item-prev" onclick="prevModal(event)">＜＜</button>
         <button class="item-nav-btn item-next" onclick="nextModal(event)">＞＞</button>
@@ -154,24 +227,19 @@
         </div>
     </div>
 
-    <div class="version-display">v1.12</div>
+    <div class="version-display">v1.13</div>
 
 <script>
-    // ーーー【設定】ここにCSVのURLを貼り付けてください ーーー
     const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';
     
-    // ★お子様の誕生日設定（ここから自動で年齢を計算します）
     const birthYear = 2022;
     const birthMonth = 1;
-
-    // 現在の満年齢を計算
     const today = new Date();
     let currentAge = today.getFullYear() - birthYear;
     if (today.getMonth() + 1 < birthMonth) {
         currentAge--;
     }
     
-    // 画面に年齢を表示
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('display-age').innerText = currentAge;
     });
@@ -242,7 +310,6 @@
                             website: item.website ? String(item.website).trim() : '',
                             address: address,
                             map_url: item['マップURL'] || item.map_url || item.mapUrl || '',
-                            // ★ 追加：スプレッドシートから対象年齢を読み取る
                             age_limit: item['対象年齢'] || item.age_limit || item.age || '', 
                             locations: locations,
                             hide: item.hide ? String(item.hide).trim() : '0',
@@ -326,32 +393,47 @@
         renderCards();
     }
 
+    // ★ 共通のフィルタリング関数 (通常表示とスロット用でロジックを共有)
+    function getAvailableItems() {
+        return data.filter(item => {
+            if (item.type !== currentTab) return false;
+            if (showOnlyLiked && !item.liked) return false;
+            if (item.images.length === 0) return false;
+            if (item.hide === '1') return false;
+            if (activeLocationFilters.size > 0 && !item.locations.some(loc => activeLocationFilters.has(loc))) return false;
+            return true;
+        });
+    }
+
     function renderCards() {
         const grid = document.getElementById('cardGrid');
         grid.innerHTML = '';
-        currentDisplayData = []; 
+        currentDisplayData = getAvailableItems();
+        
+        // スロットボタンの状態更新 (3つ以上候補がないと引けない)
+        const slotBtn = document.getElementById('slotBtn');
+        const validItems = currentDisplayData.filter(item => {
+            const minAge = parseInt(item.age_limit, 10);
+            return isNaN(minAge) || currentAge >= minAge;
+        });
+        
+        if (validItems.length < 3) {
+            slotBtn.classList.add('disabled');
+            slotBtn.innerText = '⚠️ 候補が足りません';
+        } else {
+            slotBtn.classList.remove('disabled');
+            slotBtn.innerHTML = '<i class="fa-solid fa-gift"></i> 今日の3つ！';
+        }
 
-        data.forEach(item => {
-            if (item.type !== currentTab) return;
-            if (showOnlyLiked && !item.liked) return;
-            if (item.images.length === 0) return;
-            if (item.hide === '1') return;
-            
-            if (activeLocationFilters.size > 0 && !item.locations.some(loc => activeLocationFilters.has(loc))) return;
-
-            // ★ 年齢制限の判定ロジック
+        currentDisplayData.forEach(item => {
             const minAge = parseInt(item.age_limit, 10);
             const isRestricted = !isNaN(minAge) && currentAge < minAge;
-
-            // ※グレーアウトされていても「次の候補」として送れるようにするため、配列には追加しておく
-            currentDisplayData.push(item);
 
             const card = document.createElement('div');
             card.className = isRestricted ? 'card restricted' : 'card';
             const heartClass = item.liked ? 'fa-solid fa-heart liked' : 'fa-solid fa-heart';
             const thumbImg = item.images[0];
 
-            // 制限がかかっている場合はオーバーレイを被せ、クリックできないようにする
             let overlayHtml = '';
             let clickAction = `onclick="openModal(${item.id})"`;
 
@@ -362,7 +444,7 @@
                         <span class="restricted-text">${minAge} さいから！</span>
                     </div>
                 `;
-                clickAction = ''; // クリックしてモーダルを開くのをブロック
+                clickAction = ''; 
             }
 
             card.innerHTML = `
@@ -391,6 +473,11 @@
         currentTab = tab;
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelector('.tab-btn.' + tab).classList.add('active');
+        
+        // カテゴリを変えたらスロットは閉じる
+        if (document.getElementById('slot-modal').style.display === 'flex') {
+            closeSlotMachine();
+        }
         renderCards();
     }
 
@@ -399,6 +486,161 @@
         const item = data.find(d => d.id === id);
         if (item) { item.liked = !item.liked; renderCards(); }
     }
+
+    /* =======================================
+       ★ スロットマシン関連のJavaScript 
+       ======================================= */
+    
+    let isSpinning = false;
+    let slotData = []; // スピンに使う候補データ
+    let targetIndices = [0, 0, 0]; // 最終的に止まるアイテムのインデックス
+    const itemHeightDesktop = 200;
+    const itemHeightMobile = 120;
+    
+    function setOtherButtonsGrey(greyOut) {
+        const btns = ['locationBtn', 'filterBtn', 'document.querySelector(".shuffle-btn")'];
+        document.getElementById('locationBtn').classList.toggle('greyed-out', greyOut);
+        document.getElementById('filterBtn').classList.toggle('greyed-out', greyOut);
+        document.querySelector('.shuffle-btn').classList.toggle('greyed-out', greyOut);
+    }
+
+    function openSlotMachine() {
+        const validItems = currentDisplayData.filter(item => {
+            const minAge = parseInt(item.age_limit, 10);
+            return isNaN(minAge) || currentAge >= minAge;
+        });
+
+        if (validItems.length < 3) return; // 候補が足りない場合は開かない
+
+        setOtherButtonsGrey(true);
+        document.getElementById('slot-modal').style.display = 'flex';
+        
+        // リセット処理
+        document.getElementById('spinBtn').disabled = false;
+        document.getElementById('spinBtn').innerText = 'スタート！';
+        document.getElementById('spinBtn').classList.remove('pressed');
+        
+        for (let i = 0; i < 3; i++) {
+            const windowEl = document.getElementById(`reel-window-${i}`);
+            windowEl.classList.remove('winner');
+            windowEl.onclick = null; // クリック解除
+        }
+
+        // リールの準備
+        setupReels(validItems);
+    }
+
+    function closeSlotMachine() {
+        if (isSpinning) return; // スピン中は閉じれない
+        document.getElementById('slot-modal').style.display = 'none';
+        setOtherButtonsGrey(false);
+    }
+
+    // アイテム1個分のHTMLを生成
+    function createReelItemHTML(item) {
+        return `
+            <div class="reel-item" data-id="${item.id}">
+                <img src="${item.images[0]}" alt="${item.title}">
+                <div class="reel-item-title">${item.title}</div>
+            </div>
+        `;
+    }
+
+    function setupReels(validItems) {
+        // シャッフルしてスロット用データとする
+        slotData = [...validItems];
+        shuffleArray(slotData);
+
+        // 3つのリールを構築
+        for (let i = 0; i < 3; i++) {
+            const strip = document.getElementById(`reel-${i}`);
+            strip.style.transition = 'none';
+            strip.style.transform = `translateY(0px)`;
+            
+            let html = '';
+            // 初期状態はランダムなアイテムを見せておく
+            const startItem = slotData[Math.floor(Math.random() * slotData.length)];
+            html += createReelItemHTML(startItem);
+            strip.innerHTML = html;
+        }
+    }
+
+    function startSlotSpin() {
+        if (isSpinning) return;
+        isSpinning = true;
+        
+        const btn = document.getElementById('spinBtn');
+        btn.disabled = true;
+        btn.innerText = 'ちゅうせん中...';
+        btn.classList.add('pressed');
+
+        for (let i = 0; i < 3; i++) {
+            document.getElementById(`reel-window-${i}`).classList.remove('winner');
+            document.getElementById(`reel-window-${i}`).onclick = null;
+        }
+
+        // 3つの異なるアイテムをランダムに選ぶ
+        const shuffled = [...slotData];
+        shuffleArray(shuffled);
+        const winners = shuffled.slice(0, 3);
+
+        const isMobile = window.innerWidth <= 850;
+        const itemHeight = isMobile ? itemHeightMobile : itemHeightDesktop;
+
+        // 各リールのアニメーション設定
+        const spinTime = 3000; // 基本スピン時間
+        const delayBetweenReels = 800; // リールが止まる間隔
+
+        for (let i = 0; i < 3; i++) {
+            const strip = document.getElementById(`reel-${i}`);
+            const winner = winners[i];
+            
+            // 回転演出を作るため、DOMにたくさんのアイテムを追加する
+            // 構成: [現在見えているダミー] + [ランダムなダミー x N] + [アタリ]
+            let html = strip.innerHTML; // 現在の1枚目
+            
+            const spinCycles = 20 + (i * 10); // 後ろのリールほどたくさん回る
+            for (let j = 0; j < spinCycles; j++) {
+                const randomItem = slotData[Math.floor(Math.random() * slotData.length)];
+                html += createReelItemHTML(randomItem);
+            }
+            // 最後にアタリを追加
+            html += createReelItemHTML(winner);
+            
+            strip.innerHTML = html;
+
+            // 回転開始（CSS TransitionでY軸移動）
+            // setTimeoutを使って、DOMの更新が反映されてからアニメーションを開始する
+            setTimeout(() => {
+                // 最後のアイテム（アタリ）の位置まで移動
+                const finalPosition = -(spinCycles + 1) * itemHeight;
+                // イージング関数を調整して、最初は早く、最後はバウンドして止まるように
+                strip.style.transition = `transform ${spinTime + (i * delayBetweenReels)}ms cubic-bezier(0.1, 0.7, 0.1, 1.15)`;
+                strip.style.transform = `translateY(${finalPosition}px)`;
+            }, 50);
+
+            // リール停止時の処理
+            setTimeout(() => {
+                const windowEl = document.getElementById(`reel-window-${i}`);
+                windowEl.classList.add('winner');
+                
+                // クリックで詳細を開く処理を追加
+                windowEl.onclick = () => {
+                    openModal(winner.id);
+                };
+
+                // 最後のドラムが止まったら全体終了
+                if (i === 2) {
+                    isSpinning = false;
+                    btn.innerText = 'もう1回！';
+                    btn.disabled = false;
+                    btn.classList.remove('pressed');
+                }
+            }, spinTime + (i * delayBetweenReels) + 50);
+        }
+    }
+
+    // --- ポップアップ（モーダル）関連の処理 ---
 
     function openModal(id) {
         const item = data.find(d => d.id === id);
@@ -445,6 +687,7 @@
             webBtn.style.display = 'none';
         }
 
+        // スロットモーダルの上に表示するため、z-indexはCSSで高めに設定済み
         document.getElementById('modal').style.display = 'flex';
         gallery.scrollLeft = 0;
     }
@@ -462,7 +705,10 @@
         const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
         let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
         
-        // ★ 制限がかかっているカードはスキップして次を探す
+        // スロットから開いた場合はcurrentDisplayDataに依存しない方が安全ですが、
+        // 現状はフィルターをかけた一覧で回るようにしています。
+        if(currentIndex === -1) return; 
+
         do {
             currentIndex = (currentIndex - 1 + currentDisplayData.length) % currentDisplayData.length;
         } while (currentDisplayData[currentIndex].age_limit && currentAge < parseInt(currentDisplayData[currentIndex].age_limit, 10));
@@ -476,7 +722,8 @@
         const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
         let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
         
-        // ★ 制限がかかっているカードはスキップして次を探す
+        if(currentIndex === -1) return;
+
         do {
             currentIndex = (currentIndex + 1) % currentDisplayData.length;
         } while (currentDisplayData[currentIndex].age_limit && currentAge < parseInt(currentDisplayData[currentIndex].age_limit, 10));
