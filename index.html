@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.13 (今日の3つ！スロット機能搭載) -->
+<!-- Version: 1.14 (今日の3つ！スロット連続対応版) -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -20,7 +20,7 @@
     
     .tab-btn.active.play { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
     .tab-btn.active.eat { border-color: #ff922b; background-color: #fff4e6; color: #d9480f; }
-    .tab-btn.active.lunch { border-color: #b197fc; background-color: #f3d9fa; color: #862e9c; } /* ★ 追加: 昼食ボタンのスタイル */
+    .tab-btn.active.lunch { border-color: #b197fc; background-color: #f3d9fa; color: #862e9c; } 
     .tab-btn.active.go_out { border-color: #20c997; background-color: #e6fcf5; color: #087f5b; }
     .tab-btn.active.eat_out { border-color: #f06595; background-color: #fff0f6; color: #a61e4d; }
     
@@ -28,7 +28,6 @@
     .action-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: transform 0.1s, box-shadow 0.2s; }
     .action-btn:active { transform: scale(0.95); }
     
-    /* ★ 新しいボタンのスタイル */
     .slot-btn { background-color: #fcc419; color: #862e9c; }
     .slot-btn:hover { background-color: #fab005; }
     .slot-btn.disabled { background-color: #ccc; color: #999; cursor: not-allowed; transform: none; }
@@ -40,7 +39,6 @@
     .location-btn { background-color: #20c997; }
     .location-btn.active { background-color: #0ca678; box-shadow: 0 0 10px rgba(12, 166, 120, 0.5); }
 
-    /* 他のボタンをグレーにする用 */
     .action-btn.greyed-out { background-color: #ced4da !important; color: #868e96 !important; box-shadow: none !important; cursor: not-allowed; }
 
     #location-filter-panel { display: none; background: white; border-radius: 15px; padding: 20px; margin: 0 auto 20px auto; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); text-align: left; }
@@ -103,9 +101,6 @@
     .link-img { background-color: #f3e5f5; color: #7b1fa2; border: 2px solid #e1bee7; }
     .link-web { background-color: #e8f5e9; color: #388e3c; border: 2px solid #c8e6c9; }
 
-    /* =======================================
-       ★ スロットアニメーション用スタイル 
-       ======================================= */
     #slot-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(253, 246, 227, 0.95); z-index: 2000; align-items: center; justify-content: center; flex-direction: column; }
     
     .slot-machine-container { background: #ffe066; padding: 20px; border-radius: 30px; border: 8px solid #f59f00; box-shadow: 0 15px 0 #e67700, 0 25px 20px rgba(0,0,0,0.3); max-width: 900px; width: 95%; text-align: center; position: relative; margin-bottom: 30px; }
@@ -117,7 +112,7 @@
     /* モバイル対応 */
     @media (max-width: 850px) { .reel-window { width: 100%; height: 120px; } .slot-reels { flex-direction: column; } .card-info { padding: 10px; } .card-title { font-size: 1.1rem; } .card img { height: 120px; } }
 
-    .reel-strip { display: flex; flex-direction: column; width: 100%; /* JSで高さを動的に変更し、transformで動かす */ transition: none; }
+    .reel-strip { display: flex; flex-direction: column; width: 100%; transition: none; }
     
     /* リールの中身（カードっぽく） */
     .reel-item { height: 200px; width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px; box-sizing: border-box; background: white; border-bottom: 2px solid #eee; }
@@ -153,13 +148,12 @@
     <div class="tabs">
         <button class="tab-btn active play" onclick="changeTab('play')">🎡 あそぶ</button>
         <button class="tab-btn eat" onclick="changeTab('eat')">🍔 たべる</button>
-        <button class="tab-btn lunch" onclick="changeTab('lunch')">🍱 昼食</button> <!-- ★ 追加: 昼食ボタン -->
+        <button class="tab-btn lunch" onclick="changeTab('lunch')">🍱 昼食</button> 
         <button class="tab-btn go_out" onclick="changeTab('go_out')">🚗 お出かけ</button>
         <button class="tab-btn eat_out" onclick="changeTab('eat_out')">🍽️ 外食</button>
     </div>
 
     <div class="action-buttons">
-        <!-- ★ 新しいボタンを追加 -->
         <button id="slotBtn" class="action-btn slot-btn" onclick="openSlotMachine()">
             <i class="fa-solid fa-gift"></i> 今日の3つ！
         </button>
@@ -179,9 +173,7 @@
     <div id="loading">データを よみこんでいます...</div>
     <div class="grid" id="cardGrid"></div>
 
-    <!-- =======================================
-         ★ 今日の3つ！ スロットマシンUI
-         ======================================= -->
+    <!-- 今日の3つ！ スロットマシンUI -->
     <div id="slot-modal">
         <div class="slot-machine-container">
             <h2 class="slot-title">🎰 今日の ピックアップ 🎰</h2>
@@ -229,7 +221,7 @@
         </div>
     </div>
 
-    <div class="version-display">v1.13</div>
+    <div class="version-display">v1.14</div>
 
 <script>
     const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';
@@ -395,7 +387,6 @@
         renderCards();
     }
 
-    // ★ 共通のフィルタリング関数 (通常表示とスロット用でロジックを共有)
     function getAvailableItems() {
         return data.filter(item => {
             if (item.type !== currentTab) return false;
@@ -412,7 +403,6 @@
         grid.innerHTML = '';
         currentDisplayData = getAvailableItems();
         
-        // スロットボタンの状態更新 (3つ以上候補がないと引けない)
         const slotBtn = document.getElementById('slotBtn');
         const validItems = currentDisplayData.filter(item => {
             const minAge = parseInt(item.age_limit, 10);
@@ -476,7 +466,6 @@
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelector('.tab-btn.' + tab).classList.add('active');
         
-        // カテゴリを変えたらスロットは閉じる
         if (document.getElementById('slot-modal').style.display === 'flex') {
             closeSlotMachine();
         }
@@ -489,13 +478,9 @@
         if (item) { item.liked = !item.liked; renderCards(); }
     }
 
-    /* =======================================
-       ★ スロットマシン関連のJavaScript 
-       ======================================= */
-    
     let isSpinning = false;
-    let slotData = []; // スピンに使う候補データ
-    let targetIndices = [0, 0, 0]; // 最終的に止まるアイテムのインデックス
+    let slotData = []; 
+    let targetIndices = [0, 0, 0]; 
     const itemHeightDesktop = 200;
     const itemHeightMobile = 120;
     
@@ -512,12 +497,11 @@
             return isNaN(minAge) || currentAge >= minAge;
         });
 
-        if (validItems.length < 3) return; // 候補が足りない場合は開かない
+        if (validItems.length < 3) return; 
 
         setOtherButtonsGrey(true);
         document.getElementById('slot-modal').style.display = 'flex';
         
-        // リセット処理
         document.getElementById('spinBtn').disabled = false;
         document.getElementById('spinBtn').innerText = 'スタート！';
         document.getElementById('spinBtn').classList.remove('pressed');
@@ -525,20 +509,18 @@
         for (let i = 0; i < 3; i++) {
             const windowEl = document.getElementById(`reel-window-${i}`);
             windowEl.classList.remove('winner');
-            windowEl.onclick = null; // クリック解除
+            windowEl.onclick = null; 
         }
 
-        // リールの準備
         setupReels(validItems);
     }
 
     function closeSlotMachine() {
-        if (isSpinning) return; // スピン中は閉じれない
+        if (isSpinning) return; 
         document.getElementById('slot-modal').style.display = 'none';
         setOtherButtonsGrey(false);
     }
 
-    // アイテム1個分のHTMLを生成
     function createReelItemHTML(item) {
         return `
             <div class="reel-item" data-id="${item.id}">
@@ -549,18 +531,15 @@
     }
 
     function setupReels(validItems) {
-        // シャッフルしてスロット用データとする
         slotData = [...validItems];
         shuffleArray(slotData);
 
-        // 3つのリールを構築
         for (let i = 0; i < 3; i++) {
             const strip = document.getElementById(`reel-${i}`);
             strip.style.transition = 'none';
             strip.style.transform = `translateY(0px)`;
             
             let html = '';
-            // 初期状態はランダムなアイテムを見せておく
             const startItem = slotData[Math.floor(Math.random() * slotData.length)];
             html += createReelItemHTML(startItem);
             strip.innerHTML = html;
@@ -581,7 +560,6 @@
             document.getElementById(`reel-window-${i}`).onclick = null;
         }
 
-        // 3つの異なるアイテムをランダムに選ぶ
         const shuffled = [...slotData];
         shuffleArray(shuffled);
         const winners = shuffled.slice(0, 3);
@@ -589,49 +567,54 @@
         const isMobile = window.innerWidth <= 850;
         const itemHeight = isMobile ? itemHeightMobile : itemHeightDesktop;
 
-        // 各リールのアニメーション設定
-        const spinTime = 3000; // 基本スピン時間
-        const delayBetweenReels = 800; // リールが止まる間隔
+        const spinTime = 3000; 
+        const delayBetweenReels = 800; 
+
+        // ★ 連続で回す時のために、リールの位置と要素を一度リセットする
+        for (let i = 0; i < 3; i++) {
+            const strip = document.getElementById(`reel-${i}`);
+            // 前回のアタリ（現在画面に見えている要素）だけを取得
+            const lastItem = strip.lastElementChild;
+            const currentItemHtml = lastItem ? lastItem.outerHTML : '';
+            
+            // 位置を初期位置(0px)に戻し、中身を今見えている1枚だけにする
+            strip.style.transition = 'none';
+            strip.style.transform = `translateY(0px)`;
+            strip.innerHTML = currentItemHtml; 
+            
+            // ブラウザに「位置を戻した」ことを強制的に認識させる
+            void strip.offsetHeight; 
+        }
 
         for (let i = 0; i < 3; i++) {
             const strip = document.getElementById(`reel-${i}`);
             const winner = winners[i];
             
-            // 回転演出を作るため、DOMにたくさんのアイテムを追加する
-            // 構成: [現在見えているダミー] + [ランダムなダミー x N] + [アタリ]
-            let html = strip.innerHTML; // 現在の1枚目
+            let html = strip.innerHTML; 
             
-            const spinCycles = 20 + (i * 10); // 後ろのリールほどたくさん回る
+            const spinCycles = 20 + (i * 10); 
             for (let j = 0; j < spinCycles; j++) {
                 const randomItem = slotData[Math.floor(Math.random() * slotData.length)];
                 html += createReelItemHTML(randomItem);
             }
-            // 最後にアタリを追加
             html += createReelItemHTML(winner);
             
             strip.innerHTML = html;
 
-            // 回転開始（CSS TransitionでY軸移動）
-            // setTimeoutを使って、DOMの更新が反映されてからアニメーションを開始する
             setTimeout(() => {
-                // 最後のアイテム（アタリ）の位置まで移動
                 const finalPosition = -(spinCycles + 1) * itemHeight;
-                // イージング関数を調整して、最初は早く、最後はバウンドして止まるように
                 strip.style.transition = `transform ${spinTime + (i * delayBetweenReels)}ms cubic-bezier(0.1, 0.7, 0.1, 1.15)`;
                 strip.style.transform = `translateY(${finalPosition}px)`;
             }, 50);
 
-            // リール停止時の処理
             setTimeout(() => {
                 const windowEl = document.getElementById(`reel-window-${i}`);
                 windowEl.classList.add('winner');
                 
-                // クリックで詳細を開く処理を追加
                 windowEl.onclick = () => {
                     openModal(winner.id);
                 };
 
-                // 最後のドラムが止まったら全体終了
                 if (i === 2) {
                     isSpinning = false;
                     btn.innerText = 'もう1回！';
@@ -641,8 +624,6 @@
             }, spinTime + (i * delayBetweenReels) + 50);
         }
     }
-
-    // --- ポップアップ（モーダル）関連の処理 ---
 
     function openModal(id) {
         const item = data.find(d => d.id === id);
@@ -689,7 +670,6 @@
             webBtn.style.display = 'none';
         }
 
-        // スロットモーダルの上に表示するため、z-indexはCSSで高めに設定済み
         document.getElementById('modal').style.display = 'flex';
         gallery.scrollLeft = 0;
     }
@@ -707,8 +687,6 @@
         const currentId = parseInt(document.getElementById('modal').getAttribute('data-current-id'));
         let currentIndex = currentDisplayData.findIndex(d => d.id === currentId);
         
-        // スロットから開いた場合はcurrentDisplayDataに依存しない方が安全ですが、
-        // 現状はフィルターをかけた一覧で回るようにしています。
         if(currentIndex === -1) return; 
 
         do {
