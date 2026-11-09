@@ -442,4 +442,27 @@ test('写真移行: 対象がなければ何もしない', () => {
   assert.strictEqual(main.g[1][2], 'https://drive.google.com/thumbnail?sz=w800&id=X');
 });
 
+// ================= 自動取得のエラー処理 =================
+function geocodeRun(geocodeStatus) {
+  const place = 'https://www.google.com/maps/place/n/data=!3d35.4!4d139.6';
+  const main = new Sheet('シート1', [H,
+    mk({ type: 'go_out', title: '見つからない店A', map_url: place }),
+    mk({ type: 'go_out', title: '見つからない店B', map_url: place })]);
+  const json = (o) => ({ getContentText: () => JSON.stringify(o), getHeaders: () => ({}) });
+  const fetch = (u) => json(u.includes('/geocode/') ? { status: geocodeStatus, results: [] } : { status: 'ZERO_RESULTS', results: [] });
+  const { api } = load({ 'シート1': main }, { fetch });
+  const original = console.error;
+  console.error = () => {};
+  try { api.fetchPlaceData(true); } finally { console.error = original; }
+  return main.g.slice(1).map(r => r[11]);
+}
+
+test('自動取得: Geocodingが未許可でも止めず、次の行も処理する', () => {
+  assert.deepStrictEqual(geocodeRun('REQUEST_DENIED'), ['失敗:場所を特定できず', '失敗:場所を特定できず']);
+});
+
+test('自動取得: Geocodingの上限超過では処理を止める', () => {
+  assert.deepStrictEqual(geocodeRun('OVER_QUERY_LIMIT'), ['', '']);
+});
+
 console.log(`\n${passed} tests passed`);
