@@ -1,4 +1,4 @@
-// GAS Version 1.40 (v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存) / v1.40: メモとコメントを両方残す・コメント補完)
+// GAS Version 1.43 (v1.43: 新規取得の写真をその場でドライブに保存(URL失効対策・枚数は PLACE_PHOTO_COUNT) / v1.42: 写真移行でドライブ容量不足・1日の上限を見分けて即停止 / v1.41: Google写真URLをドライブへ移行 / v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存) / v1.40: メモとコメントを両方残す・コメント補完)
 // v1.34: 座標を地図の表示中心ではなく場所のピンから取得
 //
 // 取り込みの流れ:
@@ -28,6 +28,7 @@ const TIME_LIMIT_MS = 270000;          // 1回の実行で新しい行に着手�
 const CONTINUE_HANDLER = 'fetchPlaceDataContinue';
 const MAX_CONTINUES = 40;              // 続き実行の安全上限(無限ループ防止)
 const DUP_DISTANCE_M = 50;             // 場所IDまたは店名が同じ店が、この距離(m)未満なら重複、以上なら別の店とみなす
+const PLACE_PHOTO_COUNT = 3;           // 場所1件あたりに取得する写真の最大枚数(Places Photo は1枚ごとに課金。減らせば料金も減る)
 const REDIRECT_FETCH_LIMIT = 30;       // 重複判定で短縮URLの座標を調べる最大回数(1回の実行あたり)
 
 function onOpen() {
@@ -42,6 +43,7 @@ function onOpen() {
     .addItem('🔁 失敗行を再試行', 'retryFailedRows')
     .addItem('🔧 リンク切れ画像を自動修復', 'fixBrokenImages')
     .addItem('🖼 写真を探す(選択中の行・URLから候補を選ぶ)', 'openPhotoPicker')
+    .addItem('📦 Googleの写真URLをドライブへ移行', 'migratePhotosToDrive')
     .addItem('📝 コメント補完(取り込み元のメモ+コメント)', 'restoreCommentsFromImport')
     .addSeparator()
     .addItem('🧹 作業シートを空にする(取り込み・仕分け)', 'clearWorkSheets')
@@ -399,13 +401,16 @@ function processRow_(sheet, row, r, apiKey, cx) {
 
   let photoUrls = [];
   if (!infoOnly && result.photos && result.photos.length > 0) {
-    const maxPhotos = Math.min(result.photos.length, 3);
+    const maxPhotos = Math.min(result.photos.length, PLACE_PHOTO_COUNT);
     for (let p = 0; p < maxPhotos; p++) {
       const photoRef = result.photos[p].photo_reference;
       const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoRef}&key=${apiKey}`;
       const photoRes = UrlFetchApp.fetch(photoApiUrl, { followRedirects: false, muteHttpExceptions: true });
       const finalImageUrl = photoRes.getHeaders()['Location'];
-      if (finalImageUrl) photoUrls.push(finalImageUrl);
+      if (!finalImageUrl) continue;
+      // Googleの写真URLは一定期間で変わる/切れるため、その場でドライブに保存してそのURLを使う(Photo APIの追加呼び出しはなし)。
+      // 保存できなかったとき(容量不足など)は、従来どおりGoogleのURLを入れておく(後で「写真をドライブへ移行」で保存できる)
+      photoUrls.push(savePhotoUrlToDrive_(finalImageUrl, (cleanName || title || '写真') + '_' + (p + 1)) || finalImageUrl);
     }
   }
 
@@ -1147,6 +1152,208 @@ function saveSelectedImages(sheetName, row, urls, mode) {
     lock.releaseLock();
   }
 }
+
+// ==========================================
+// Googleの写真URL(lh3.googleusercontent.com)をドライブへ移行(v1.41)
+//   Places の写真URLは一定期間で変わる/切れるため、画像を取り込んでドライブに保存し、
+//   サムネイルURL(drive.google.com/thumbnail)に置き換える。Places API は呼ばない(追加料金なし)。
+//   対象: シート1・仕分けの画像欄(C列)。ドライブ/他サイトのURLはそのまま残す。
+//   消えているURL(HTTP 400/403/404/410)は外す。全部消えた行は「写真なし」にする(後で「写真を探す」で付けられる)。
+//   一時的なエラー(5xx・429・通信失敗)のURLは残す(再実行で拾う)。6分制限は続き実行トリガーで越える。
+// ==========================================
+const MIGRATE_HANDLER = 'migratePhotosContinue';
+const MAX_MIGRATE_CONTINUES = 150;     // 続き実行の安全上限
+const MIGRATE_ABORT_STREAK = 15;       // 一時的なエラーがこの行数つづいたら中断(制限・障害でむだに回らないように)
+const GOOGLE_PHOTO_RE = /^https?:\/\/lh\d*\.googleusercontent\.com\//i;
+const DEAD_HTTP_CODES = [400, 403, 404, 410];
+
+// ドライブ保存の例外から、容量不足('storage')・1日の上限('daily')を見分ける。それ以外は ''
+function driveFatalKind_(e) {
+  const m = String(e && e.message ? e.message : e);
+  if (/too many times|Service invoked|1日|上限/i.test(m)) return 'daily';
+  if (/storage|quota|容量|空き/i.test(m)) return 'storage';
+  return '';
+}
+
+// 画像のblobを検査してドライブに保存し、サムネイルURLを返す。画像として不適切なら ''(ドライブ側の例外はそのまま投げる)
+let photoFolderCache_ = null;
+function storeBlobInDrive_(blob, baseName) {
+  const ct = String(blob.getContentType() || '').toLowerCase();
+  const size = blob.getBytes().length;
+  if (ct.indexOf('image/') !== 0 || size < PHOTO_MIN_BYTES || size > PHOTO_MAX_BYTES) return '';
+  const ext = (ct.split('/')[1] || 'jpg').replace(/[^a-z0-9]/g, '').replace('jpeg', 'jpg');
+  blob.setName(`${baseName}_${Date.now()}.${ext}`);
+  if (!photoFolderCache_) photoFolderCache_ = getPhotoFolder_();
+  const file = photoFolderCache_.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return driveThumb_(file.getId());
+}
+
+// URLの画像を取得してドライブに保存し、サムネイルURLを返す。失敗したら ''(例外は出さない)
+function savePhotoUrlToDrive_(url, baseName) {
+  try {
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': FETCH_UA } });
+    if (res.getResponseCode() >= 400) return '';
+    return storeBlobInDrive_(res.getBlob(), baseName);
+  } catch (e) {
+    console.error(String(e)); // URL等が混ざりうるのでシートには書かない
+    return '';
+  }
+}
+
+function isGooglePhotoUrl_(u) { return GOOGLE_PHOTO_RE.test(String(u || '').trim()); }
+function hasGooglePhoto_(img) { return String(img || '').split(',').some(isGooglePhotoUrl_); }
+
+function clearMigrateTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === MIGRATE_HANDLER) ScriptApp.deleteTrigger(t);
+  });
+}
+
+function countGooglePhotoRows_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let n = 0;
+  [SHEET_MAIN, SHEET_SORT].forEach(name => {
+    const sh = ss.getSheetByName(name);
+    if (!sh || sh.getLastRow() < 2) return;
+    n += sh.getRange(2, COL.IMG, sh.getLastRow() - 1, 1).getValues().filter(r => hasGooglePhoto_(r[0])).length;
+  });
+  return n;
+}
+
+// 1行ぶんの移行。{img: 新しい画像欄, saved, dead, transient} を返す。ここでは書き込まない
+function migrateRowPhotos_(folder, title, img) {
+  const urls = String(img || '').split(',').map(x => x.trim()).filter(Boolean);
+  const targets = [];
+  urls.forEach((u, i) => { if (isGooglePhotoUrl_(u)) targets.push(i); });
+  const out = urls.slice();
+  const drop = {};
+  let saved = 0, dead = 0, transient = 0, fatal = '';
+
+  let responses = [];
+  try {
+    responses = UrlFetchApp.fetchAll(targets.map(i => ({ url: urls[i], muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': FETCH_UA } })));
+  } catch (e) {
+    console.error(String(e));
+    return { img: img, saved: 0, dead: 0, transient: targets.length };
+  }
+
+  targets.forEach((idx, k) => {
+    if (fatal) { transient++; return; } // 容量不足などが分かったら、残りの保存は試さない
+    try {
+      const res = responses[k];
+      const code = res.getResponseCode();
+      if (DEAD_HTTP_CODES.indexOf(code) >= 0) { drop[idx] = true; dead++; return; }
+      if (code >= 400) { transient++; return; }
+      const thumb = storeBlobInDrive_(res.getBlob(), `${title}_${idx + 1}`);
+      if (!thumb) { transient++; return; }
+      out[idx] = thumb;
+      saved++;
+    } catch (e) {
+      transient++;
+      fatal = driveFatalKind_(e);
+      console.error(String(e)); // URL等が混ざりうるのでシートには書かない
+    }
+  });
+
+  const kept = out.filter((u, i) => !drop[i]);
+  return { img: kept.join(','), saved: saved, dead: dead, transient: transient, allGone: urls.length > 0 && kept.length === 0, fatal: fatal };
+}
+
+function migrateSheets_(start) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const folder = getPhotoFolder_();
+  photoFolderCache_ = folder;
+  const total = { saved: 0, dead: 0, transient: 0 };
+  let timedOut = false, aborted = false, streak = 0, fatal = '';
+
+  for (const name of [SHEET_MAIN, SHEET_SORT]) {
+    if (timedOut || aborted) break;
+    const sheet = ss.getSheetByName(name);
+    if (!sheet || sheet.getLastRow() < 2) continue;
+    const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, COL.IMG).getValues();
+    for (let i = 0; i < data.length; i++) {
+      const img = data[i][COL.IMG - 1];
+      if (!hasGooglePhoto_(img)) continue;
+      if (Date.now() - start > TIME_LIMIT_MS) { timedOut = true; break; }
+
+      const row = i + 2;
+      const r = migrateRowPhotos_(folder, String(data[i][COL.TITLE - 1] || '写真'), img);
+      total.saved += r.saved; total.dead += r.dead; total.transient += r.transient;
+
+      if (r.saved > 0 || r.dead > 0) {
+        if (r.allGone) {
+          sheet.getRange(row, COL.IMG).setValue('写真なし');
+          sheet.getRange(row, COL.STATUS).setValue('成功(写真なし)'); // 「失敗」で始めない(再試行でAPI課金が走らないように)
+        } else {
+          sheet.getRange(row, COL.IMG).setValue(r.img);
+        }
+      }
+      if (r.fatal) { fatal = r.fatal; aborted = true; break; } // この行のぶんは書き込み済み。ここで止める
+      streak = (r.saved === 0 && r.dead === 0 && r.transient > 0) ? streak + 1 : 0;
+      if (streak >= MIGRATE_ABORT_STREAK) { aborted = true; break; }
+    }
+  }
+  SpreadsheetApp.flush();
+  return { total: total, timedOut: timedOut, aborted: aborted, fatal: fatal };
+}
+
+function migratePhotosContinue() {
+  migratePhotosToDrive(true);
+}
+
+function migratePhotosToDrive(isBackground) {
+  const background = isBackground === true;
+  const ui = SpreadsheetApp.getUi();
+  if (!background) {
+    const n = countGooglePhotoRows_();
+    if (n === 0) { Browser.msgBox('移行する写真(Googleの写真URL)はありませんでした。'); return; }
+    const ans = ui.alert('📦 写真をドライブへ移行',
+      `Googleの写真URLが残っている行: ${n}行\n\n画像をドライブ(「${PHOTO_FOLDER_NAME}」フォルダ)に保存し、画像欄をドライブのURLに置き換えます。\n・Places APIは使いません(追加料金なし)\n・すでに消えているURLは外します(全部消えた行は「写真なし」)\n・6分を超えるぶんは、自動で続きを実行します\n\n始めますか？`,
+      ui.ButtonSet.YES_NO);
+    if (ans !== ui.Button.YES) return;
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    if (!background) Browser.msgBox('別の処理が実行中です。少し待ってからやり直してください。');
+    return;
+  }
+  try {
+    const props = PropertiesService.getScriptProperties();
+    clearMigrateTriggers_();
+    if (!background) props.deleteProperty('MIGRATE_COUNT');
+
+    const r = migrateSheets_(Date.now());
+    const left = countGooglePhotoRows_();
+    const t = r.total;
+
+    let again = false;
+    if (r.timedOut && !r.aborted && left > 0) {
+      const cont = Number(props.getProperty('MIGRATE_COUNT') || 0);
+      if (cont < MAX_MIGRATE_CONTINUES) {
+        props.setProperty('MIGRATE_COUNT', String(cont + 1));
+        ScriptApp.newTrigger(MIGRATE_HANDLER).timeBased().after(60 * 1000).create();
+        again = true;
+      }
+    }
+    if (!again) props.deleteProperty('MIGRATE_COUNT');
+
+    const msg = `移行 ${t.saved}枚 / 消えていた ${t.dead}枚 / 一時エラー ${t.transient}枚 / 残り ${left}行` +
+      (again ? '(1分後に続きを自動実行します)' : '') +
+      (r.fatal === 'storage' ? '\n※ ドライブの容量が足りません。空きを作ってから、もう一度実行してください(移行済みの行は飛ばして続きから)。'
+        : r.fatal === 'daily' ? '\n※ Googleのドライブ操作の1日の上限に達しました。翌日にもう一度実行してください(続きから再開します)。'
+        : r.aborted ? '\n※ 一時エラーが続いたため中断しました。しばらくしてからもう一度実行してください。' : '');
+    console.log(msg);
+    try {
+      if (background) SpreadsheetApp.getActiveSpreadsheet().toast(msg, '写真の移行', 10);
+      else Browser.msgBox(msg);
+    } catch (e) { /* 画面が使えない実行では無視 */ }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 
 function buildPhotoPickerHtml_(ctx) {
   const json = JSON.stringify(ctx).replace(/</g, '\\u003c');

@@ -82,7 +82,10 @@ function load(sheets, ui = {}) {
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k === 'MAPS_API_KEY' ? 'K' : null), setProperty() {}, deleteProperty() {} }) },
     ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: () => ({ timeBased: () => ({ after: () => ({ create() {} }) }) }) },
     Utilities: { sleep() {} },
-    UrlFetchApp: { fetch: (u, o) => (ui.fetch ? ui.fetch(u, o) : { getResponseCode: () => 200, getHeaders: () => ({}), getContentText: () => '{}' }) },
+    UrlFetchApp: {
+      fetch: (u, o) => (ui.fetch ? ui.fetch(u, o) : { getResponseCode: () => 200, getHeaders: () => ({}), getContentText: () => '{}' }),
+      fetchAll: (reqs) => reqs.map(q => ui.fetch(q.url, q))
+    },
     DriveApp: ui.drive || {},
     HtmlService: { createHtmlOutput: h => ({ html: h, setWidth() { return this; }, setHeight() { return this; } }) },
     Browser: { msgBox: m => log.push('msg:' + m) },
@@ -92,7 +95,7 @@ function load(sheets, ui = {}) {
     ? Object.keys(ui.hooks).map(k => `${k}=hooks.${k};`).join('\n')
     : '';
   const fn = new Function(...Object.keys(env),
-    SRC + '\n' + stubs + '\nreturn {registerFromSorting, importSavedList, importWizard, clearWorkSheets, findImageCandidates, saveSelectedImages, extractImageUrls_, resolveUrl_, openPhotoPicker, buildPhotoPickerHtml_, restoreCommentsFromImport, joinComment_};');
+    SRC + '\n' + stubs + '\nreturn {registerFromSorting, importSavedList, importWizard, clearWorkSheets, findImageCandidates, saveSelectedImages, extractImageUrls_, resolveUrl_, openPhotoPicker, buildPhotoPickerHtml_, restoreCommentsFromImport, joinComment_, migratePhotosToDrive, fetchPlaceData};');
   return { api: fn(...Object.values(env)), log };
 }
 
@@ -340,6 +343,103 @@ test('コメント補完: 「メモだけ」になっている行を直し、手
   // 2回目は何も変わらない
   api.restoreCommentsFromImport();
   assert.strictEqual(sort.g[1][4], 'メモA / コメントA');
+});
+
+// ================= Googleの写真URL → ドライブ移行 =================
+test('写真移行: lh3のURLをドライブに保存して置き換え、消えたURLは外し、一時エラーは残す', () => {
+  const G = (n) => `https://lh3.googleusercontent.com/grass-cs/${n}=s1600-w800`;
+  const big = (ct) => ({ getContentType: () => ct, getBytes: () => new Array(20000), setName(n) { this.name = n; } });
+  const fetch = (u) => {
+    if (u.includes('/ok')) return { getResponseCode: () => 200, getBlob: () => big('image/jpeg') };
+    if (u.includes('/gone')) return { getResponseCode: () => 400 };
+    if (u.includes('/busy')) return { getResponseCode: () => 503 };
+    return { getResponseCode: () => 200, getBlob: () => big('image/jpeg') };
+  };
+  const files = [];
+  const drive = {
+    Access: { ANYONE_WITH_LINK: 1 }, Permission: { VIEW: 1 },
+    getFoldersByName: () => ({ hasNext: () => false }),
+    createFolder: () => ({ createFile: (blob) => { const f = { id: 'F' + files.length, setSharing() {}, getId() { return this.id; } }; files.push(f); return f; } })
+  };
+  const main = new Sheet('シート1', [H,
+    mk({ type: 'go_out', title: 'A', img: [G('ok1'), G('gone1'), 'https://drive.google.com/thumbnail?sz=w800&id=KEEP', G('ok2')].join(','), status: '成功' }), // 1,2,4番目だけ対象
+    mk({ type: 'go_out', title: 'B', img: [G('gone2'), G('gone3')].join(','), status: '成功' }),                                                           // 全部消えた
+    mk({ type: 'go_out', title: 'C', img: G('busy1'), status: '成功' }),                                                                                  // 一時エラー → そのまま
+    mk({ type: 'go_out', title: 'D', img: 'https://example.com/x.jpg', status: '成功' }),                                                                 // 対象外
+    mk({ type: 'go_out', title: 'E', img: '写真なし', status: '成功(写真なし)' })]);
+  const sort = new Sheet('仕分け', [HS, mk({ title: 'F', img: G('ok3'), status: '成功' })]);
+  const { api, log } = load({ 'シート1': main, '仕分け': sort }, { fetch, drive });
+  api.migratePhotosToDrive();
+  assert.strictEqual(main.g[1][2], 'https://drive.google.com/thumbnail?sz=w800&id=F0,https://drive.google.com/thumbnail?sz=w800&id=KEEP,https://drive.google.com/thumbnail?sz=w800&id=F1');
+  assert.strictEqual(main.g[2][2], '写真なし');
+  assert.strictEqual(main.g[2][11], '成功(写真なし)');
+  assert.strictEqual(main.g[3][2], G('busy1'));
+  assert.strictEqual(main.g[4][2], 'https://example.com/x.jpg');
+  assert.strictEqual(main.g[5][2], '写真なし');
+  assert.strictEqual(sort.g[1][2], 'https://drive.google.com/thumbnail?sz=w800&id=F2');
+  assert.strictEqual(files.length, 3);
+  assert.ok(log.some(l => l.startsWith('msg:移行 3枚 / 消えていた 3枚 / 一時エラー 1枚 / 残り 1行')), log.join('|'));
+});
+
+test('写真移行: ドライブの容量不足・1日の上限は見分けて即停止(元のURLは残る・続き実行は作らない)', () => {
+  const G = (n) => `https://lh3.googleusercontent.com/grass-cs/${n}=s1600-w800`;
+  const blob = () => ({ getContentType: () => 'image/jpeg', getBytes: () => new Array(20000), setName() {} });
+  const fetch = () => ({ getResponseCode: () => 200, getBlob: blob });
+  for (const [errMsg, expect] of [['Exception: Not enough storage space', 'ドライブの容量が足りません'], ['Service invoked too many times for one day: drive.', '1日の上限']]) {
+    let made = 0, triggers = 0;
+    const drive = {
+      Access: { ANYONE_WITH_LINK: 1 }, Permission: { VIEW: 1 },
+      getFoldersByName: () => ({ hasNext: () => false }),
+      createFolder: () => ({ createFile: () => { if (made++ >= 1) throw new Error(errMsg); return { setSharing() {}, getId: () => 'OKF' }; } })
+    };
+    const main = new Sheet('シート1', [H,
+      mk({ type: 'go_out', title: 'A', img: G('a') + ',' + G('b'), status: '成功' }),
+      mk({ type: 'go_out', title: 'B', img: G('c'), status: '成功' })]);
+    const { api, log } = load({ 'シート1': main }, { fetch, drive, hooks: null });
+    api.migratePhotosToDrive();
+    assert.strictEqual(main.g[1][2], 'https://drive.google.com/thumbnail?sz=w800&id=OKF,' + G('b'), '1枚目だけ置き換わり、失敗した分は元のURLのまま');
+    assert.strictEqual(main.g[2][2], G('c'), '以降の行は触らない');
+    assert.ok(log.some(l => l.startsWith('msg:') && l.includes(expect)), log.join('|'));
+  }
+});
+
+test('新規取得: Places の写真をその場でドライブに保存(失敗したらGoogleのURLにフォールバック)', () => {
+  const big = () => ({ getContentType: () => 'image/jpeg', getBytes: () => new Array(20000), setName() {} });
+  const fetchFor = (failImage) => (u) => {
+    const js = (o) => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify(o), getHeaders: () => ({}) });
+    if (u.includes('/nearbysearch/') || u.includes('/textsearch/')) return js({ status: 'OK', results: [{ place_id: 'P1', name: '公園', geometry: { location: { lat: 35, lng: 139 } } }] });
+    if (u.includes('/details/')) return js({ status: 'OK', result: { name: '公園', types: ['park'], formatted_address: '日本、神奈川県横浜市中区1-1', geometry: { location: { lat: 35, lng: 139 } },
+      photos: [{ photo_reference: 'R1' }, { photo_reference: 'R2' }, { photo_reference: 'R3' }] } });
+    if (u.includes('/place/photo')) { const n = u.match(/photoreference=(\w+)/)[1]; return { getResponseCode: () => 302, getHeaders: () => ({ Location: 'https://lh3.googleusercontent.com/grass-cs/' + n + '=s1600-w800' }) }; }
+    if (u.includes('googleusercontent.com')) return failImage && u.includes('R2') ? { getResponseCode: () => 503 } : { getResponseCode: () => 200, getBlob: big };
+    return js({});
+  };
+  const mkDrive = (files) => ({
+    Access: { ANYONE_WITH_LINK: 1 }, Permission: { VIEW: 1 },
+    getFoldersByName: () => ({ hasNext: () => false }),
+    createFolder: () => ({ createFile: () => { const f = { id: 'D' + files.length, setSharing() {}, getId() { return this.id; } }; files.push(f); return f; } })
+  });
+  const run = (failImage) => {
+    const files = [];
+    const main = new Sheet('シート1', [H, mk({ type: 'go_out', title: '公園', map_url: 'https://www.google.com/maps/place/x/@35,139,15z' })]);
+    const { api } = load({ 'シート1': main }, { fetch: fetchFor(failImage), drive: mkDrive(files) });
+    api.fetchPlaceData();
+    return { img: main.g[1][2], status: main.g[1][11], files };
+  };
+  const ok = run(false);
+  assert.strictEqual(ok.img, 'https://drive.google.com/thumbnail?sz=w800&id=D0,https://drive.google.com/thumbnail?sz=w800&id=D1,https://drive.google.com/thumbnail?sz=w800&id=D2');
+  assert.strictEqual(ok.status, '成功');
+  // 2枚目の保存に失敗 → その1枚だけGoogleのURLのまま(あとで移行メニューで拾える)
+  const part = run(true);
+  assert.strictEqual(part.img, 'https://drive.google.com/thumbnail?sz=w800&id=D0,https://lh3.googleusercontent.com/grass-cs/R2=s1600-w800,https://drive.google.com/thumbnail?sz=w800&id=D1');
+});
+
+test('写真移行: 対象がなければ何もしない', () => {
+  const main = new Sheet('シート1', [H, mk({ type: 'go_out', title: 'A', img: 'https://drive.google.com/thumbnail?sz=w800&id=X', status: '成功' })]);
+  const { api, log } = load({ 'シート1': main }, {});
+  api.migratePhotosToDrive();
+  assert.ok(log.some(l => l.includes('移行する写真')));
+  assert.strictEqual(main.g[1][2], 'https://drive.google.com/thumbnail?sz=w800&id=X');
 });
 
 console.log(`\n${passed} tests passed`);
