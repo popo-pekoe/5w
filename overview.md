@@ -82,6 +82,7 @@ Googleマップの保存リスト（Google Takeoutで書き出したCSV）を、
 * `registerFromSorting()` … ③。失敗行の再取得、重複・保留の判定、シート1への登録。
 * `clearWorkSheets()` … ④。作業シートを空にする（未解決行があれば警告）。
 * `retryFailedRows()` … `失敗` の行をやり直す。
+* `restoreCommentsFromImport()` … 「コメント補完」。取り込み元のCSVの「メモ」と「コメント」を、同じURLの行の comment に「メモ / コメント」として補う。
 * `openPhotoPicker()` … 「写真を探す」。選択中の行について、URLのページから画像の候補を並べて選ぶ画面を開く。`findImageCandidates()` が候補を集め、`saveSelectedImages()` が選んだ画像をドライブ(「えらんで_写真」フォルダ)に保存して画像欄に書く。
 * 長時間の処理は、6分制限のため途中で止めて自動で続きを実行します（`LockService` で二重実行も防止）。
 

@@ -1,4 +1,4 @@
-// GAS Version 1.39 (v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存))
+// GAS Version 1.40 (v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存) / v1.40: メモとコメントを両方残す・コメント補完)
 // v1.34: 座標を地図の表示中心ではなく場所のピンから取得
 //
 // 取り込みの流れ:
@@ -42,6 +42,7 @@ function onOpen() {
     .addItem('🔁 失敗行を再試行', 'retryFailedRows')
     .addItem('🔧 リンク切れ画像を自動修復', 'fixBrokenImages')
     .addItem('🖼 写真を探す(選択中の行・URLから候補を選ぶ)', 'openPhotoPicker')
+    .addItem('📝 コメント補完(取り込み元のメモ+コメント)', 'restoreCommentsFromImport')
     .addSeparator()
     .addItem('🧹 作業シートを空にする(取り込み・仕分け)', 'clearWorkSheets')
     .addToUi();
@@ -449,10 +450,19 @@ function processRow_(sheet, row, r, apiKey, cx) {
 // 保存リスト(Takeout CSV)の取り込み
 //   シート「取り込み」に CSV(タイトル/メモ/URL/タグ/コメント)を貼って実行。
 //   同じURLが無いものだけ「仕分け」へ追加し、取り込み側に「取込済」「重複」を記録する。
+//   メモ→comment列(コメントもあれば「メモ / コメント」)。タグは使わない。
 // ==========================================
 function extractFid_(url) {
   const m = String(url || '').match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i);
   return m ? m[1].toLowerCase() : '';
+}
+
+// Takeoutの「メモ」と「コメント」を1つにまとめる(両方あれば「メモ / コメント」。同じ内容なら1つ)
+function joinComment_(memo, cmt) {
+  memo = String(memo || '').trim();
+  cmt = String(cmt || '').trim();
+  if (memo && cmt && memo !== cmt) return memo + ' / ' + cmt;
+  return memo || cmt;
 }
 
 function normalizeTitle_(s) {
@@ -517,7 +527,7 @@ function importSavedList() {
       const cmt = iComment >= 0 ? String(row[iComment] || '').trim() : '';
       const out = new Array(NUM_COLS).fill('');
       out[COL.TITLE - 1] = title;
-      out[COL.COMMENT - 1] = memo || cmt;
+      out[COL.COMMENT - 1] = joinComment_(memo, cmt);
       out[COL.MAP_URL - 1] = url;
       newRows.push(out);
       if (url) urls.set(url, `取り込み ${r + 1}行目`);
@@ -538,6 +548,54 @@ function importSavedList() {
 
   ss.toast(`${added}件を「仕分け」に追加、${dup}件は重複でした。続けて情報を取得します。`, '取り込み', 8);
   if (added > 0) fetchPlaceData(true);
+}
+
+// ==========================================
+// 📝 コメント補完: 古い版の取り込みで捨てられた「コメント」を、「取り込み」シートの元データから補う
+//   「取り込み」に残っているCSV(または貼り直したCSV)を使い、同じURLの行(仕分け・シート1)の comment が
+//   「メモだけ」のままのものを「メモ / コメント」に直す。手で書き換えた行は触らない。
+// ==========================================
+function restoreCommentsFromImport() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const imp = ss.getSheetByName(SHEET_IMPORT);
+  if (!imp || imp.getLastRow() < 2) { ui.alert('「取り込み」シートに元のCSVがありません。TakeoutのCSVを貼ってから実行してください。'); return; }
+
+  const values = imp.getRange(1, 1, imp.getLastRow(), Math.max(imp.getLastColumn(), 1)).getValues();
+  const header = values[0].map(h => String(h).trim());
+  const iMemo = header.indexOf('メモ'), iUrl = header.indexOf('URL'), iComment = header.indexOf('コメント');
+  if (iUrl < 0 || iMemo < 0 || iComment < 0) { ui.alert('「取り込み」の見出しに「メモ」「URL」「コメント」が見つかりません。'); return; }
+
+  const byUrl = new Map();
+  for (let r = 1; r < values.length; r++) {
+    const url = String(values[r][iUrl] || '').trim();
+    const memo = String(values[r][iMemo] || '').trim();
+    const cmt = String(values[r][iComment] || '').trim();
+    if (url && memo && cmt && memo !== cmt) byUrl.set(url, { memo: memo, joined: joinComment_(memo, cmt) });
+  }
+  if (byUrl.size === 0) { ui.alert('メモとコメントの両方が入っている行がありませんでした。補完するものはありません。'); return; }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) { ui.alert('別の処理が実行中です。少し待ってからやり直してください。'); return; }
+  let fixed = 0;
+  try {
+    for (const name of [SHEET_SORT, SHEET_MAIN]) {
+      const sheet = ss.getSheetByName(name);
+      if (!sheet || sheet.getLastRow() < 2) continue;
+      const v = sheet.getRange(2, 1, sheet.getLastRow() - 1, NUM_COLS).getValues();
+      for (let i = 0; i < v.length; i++) {
+        const info = byUrl.get(String(v[i][COL.MAP_URL - 1] || '').trim());
+        if (!info) continue;
+        if (String(v[i][COL.COMMENT - 1] || '').trim() !== info.memo) continue; // 手で直した行は触らない
+        sheet.getRange(i + 2, COL.COMMENT).setValue(info.joined);
+        fixed++;
+      }
+    }
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+  ss.toast(`${fixed}件のコメントを補いました。`, 'コメント補完', 6);
 }
 
 // ==========================================

@@ -92,7 +92,7 @@ function load(sheets, ui = {}) {
     ? Object.keys(ui.hooks).map(k => `${k}=hooks.${k};`).join('\n')
     : '';
   const fn = new Function(...Object.keys(env),
-    SRC + '\n' + stubs + '\nreturn {registerFromSorting, importSavedList, importWizard, clearWorkSheets, findImageCandidates, saveSelectedImages, extractImageUrls_, resolveUrl_, openPhotoPicker, buildPhotoPickerHtml_};');
+    SRC + '\n' + stubs + '\nreturn {registerFromSorting, importSavedList, importWizard, clearWorkSheets, findImageCandidates, saveSelectedImages, extractImageUrls_, resolveUrl_, openPhotoPicker, buildPhotoPickerHtml_, restoreCommentsFromImport, joinComment_};');
   return { api: fn(...Object.values(env)), log };
 }
 
@@ -302,6 +302,44 @@ test('写真: 選択画面を開く(対象の行の情報が入る・画面の�
   const { api: api2, log: log2 } = load({ '取り込み': new Sheet('取り込み', [IH]) }, { active: { sheet: '取り込み', row: 2 } });
   api2.openPhotoPicker();
   assert.ok(log2.some(l => l.startsWith('alert:')) && !log2.some(l => l.startsWith('dialog:')));
+});
+
+
+// ================= メモ+コメント =================
+test('メモ+コメント: 取り込みでは「メモ / コメント」でつなげる', () => {
+  const { api } = load({});
+  assert.strictEqual(api.joinComment_('淡麗系', '行列あり'), '淡麗系 / 行列あり');
+  assert.strictEqual(api.joinComment_('淡麗系', ''), '淡麗系');
+  assert.strictEqual(api.joinComment_('', '行列あり'), '行列あり');
+  assert.strictEqual(api.joinComment_('同じ', '同じ'), '同じ');
+
+  const main = new Sheet('シート1', [H]);
+  const imp = new Sheet('取り込み', [IH, ['店A', 'メモA', fid('a1'), 'タグ', 'コメントA'], ['店B', '', fid('b1'), '', 'コメントB']]);
+  const sheets = { 'シート1': main, '取り込み': imp };
+  load(sheets).api.importSavedList();
+  assert.deepStrictEqual(sheets['仕分け'].g.slice(1).map(r => r[4]), ['メモA / コメントA', 'コメントB']);
+});
+
+test('コメント補完: 「メモだけ」になっている行を直し、手で直した行・他の行は触らない', () => {
+  const imp = new Sheet('取り込み', [IH,
+    ['店A', 'メモA', fid('a1'), '', 'コメントA', '取込済'],
+    ['店B', 'メモB', fid('b1'), '', 'コメントB', '取込済'],
+    ['店C', 'メモC', fid('c1'), '', '', '取込済'],          // コメントなし → 対象外
+    ['店D', 'メモD', fid('d1'), '', 'コメントD', '取込済']]);  // シート1側
+  const sort = new Sheet('仕分け', [HS,
+    mk({ title: '店A', comment: 'メモA', map_url: fid('a1') }),           // 補完される
+    mk({ title: '店B', comment: '自分で書き換えた', map_url: fid('b1') }), // 触らない
+    mk({ title: '店C', comment: 'メモC', map_url: fid('c1') })]);        // 触らない
+  const main = new Sheet('シート1', [H, mk({ type: 'eat_out', title: '店D', comment: 'メモD', img: 'https://i', map_url: fid('d1') })]);
+  const { api } = load({ '取り込み': imp, '仕分け': sort, 'シート1': main });
+  api.restoreCommentsFromImport();
+  assert.strictEqual(sort.g[1][4], 'メモA / コメントA');
+  assert.strictEqual(sort.g[2][4], '自分で書き換えた');
+  assert.strictEqual(sort.g[3][4], 'メモC');
+  assert.strictEqual(main.g[1][4], 'メモD / コメントD');
+  // 2回目は何も変わらない
+  api.restoreCommentsFromImport();
+  assert.strictEqual(sort.g[1][4], 'メモA / コメントA');
 });
 
 console.log(`\n${passed} tests passed`);
