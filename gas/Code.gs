@@ -1,4 +1,4 @@
-// GAS Version 1.40 (v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存) / v1.40: メモとコメントを両方残す・コメント補完)
+// GAS Version 1.41 (v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存) / v1.40: メモとコメントを両方残す・コメント補完 / v1.41: Geocodingの拒否で取得全体を止めない)
 // v1.34: 座標を地図の表示中心ではなく場所のピンから取得
 //
 // 取り込みの流れ:
@@ -360,7 +360,10 @@ function processRow_(sheet, row, r, apiKey, cx) {
           if (match) addressStr = match[0];
         }
       } catch (e) {
-        if (String(e.message).indexOf('FATAL:') === 0) throw e;
+        // Geocodingが未許可でも住所なしで続ける(他の行の処理を止めない)
+        const msg = String(e.message);
+        if (msg.indexOf('FATAL:') === 0 && msg !== 'FATAL:REQUEST_DENIED') throw e;
+        console.error('Geocoding: ' + msg);
       }
     }
     if (latLngStr) {
@@ -1344,25 +1347,5 @@ function fixBrokenImages() {
     Browser.msgBox(`完了！\n${brokenCount}件のリンク切れ画像を検知し、最新の画像に更新しました。\n(件数が多い場合は、残りが自動で続けて処理されます)`);
   } else {
     Browser.msgBox('リンク切れの画像はありませんでした。すべて正常です！');
-  }
-}
-
-// ==========================================
-// デバッグ用(手動実行・ログのみ。シートは変更しない)
-// ==========================================
-function debugYasuragi() {
-  const key = PropertiesService.getScriptProperties().getProperty('MAPS_API_KEY');
-  const loc = '35.4652664,139.4934985';
-  const q = encodeURIComponent('やすらぎのみち');
-  const base = 'https://maps.googleapis.com/maps/api';
-  const urls = {
-    nearby: `${base}/place/nearbysearch/json?location=${loc}&radius=3000&keyword=${q}&language=ja&key=${key}`,
-    text: `${base}/place/textsearch/json?query=${q}&location=${loc}&radius=3000&language=ja&key=${key}`,
-    geocode: `${base}/geocode/json?latlng=${loc}&language=ja&key=${key}`
-  };
-  for (const name in urls) {
-    const json = JSON.parse(UrlFetchApp.fetch(urls[name], {muteHttpExceptions: true}).getContentText());
-    const top = (json.results || []).slice(0, 3).map(r => r.name || r.formatted_address);
-    console.log(name, json.status, json.error_message || '', JSON.stringify(top));
   }
 }

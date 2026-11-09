@@ -92,7 +92,7 @@ function load(sheets, ui = {}) {
     ? Object.keys(ui.hooks).map(k => `${k}=hooks.${k};`).join('\n')
     : '';
   const fn = new Function(...Object.keys(env),
-    SRC + '\n' + stubs + '\nreturn {registerFromSorting, importSavedList, importWizard, clearWorkSheets, findImageCandidates, saveSelectedImages, extractImageUrls_, resolveUrl_, openPhotoPicker, buildPhotoPickerHtml_, restoreCommentsFromImport, joinComment_};');
+    SRC + '\n' + stubs + '\nreturn {fetchPlaceData, registerFromSorting,importSavedList, importWizard, clearWorkSheets, findImageCandidates, saveSelectedImages, extractImageUrls_, resolveUrl_, openPhotoPicker, buildPhotoPickerHtml_, restoreCommentsFromImport, joinComment_};');
   return { api: fn(...Object.values(env)), log };
 }
 
@@ -340,6 +340,29 @@ test('コメント補完: 「メモだけ」になっている行を直し、手
   // 2回目は何も変わらない
   api.restoreCommentsFromImport();
   assert.strictEqual(sort.g[1][4], 'メモA / コメントA');
+});
+
+// ================= 自動取得のエラー処理 =================
+function geocodeRun(geocodeStatus) {
+  const place = 'https://www.google.com/maps/place/n/data=!3d35.4!4d139.6';
+  const main = new Sheet('シート1', [H,
+    mk({ type: 'go_out', title: '見つからない店A', map_url: place }),
+    mk({ type: 'go_out', title: '見つからない店B', map_url: place })]);
+  const json = (o) => ({ getContentText: () => JSON.stringify(o), getHeaders: () => ({}) });
+  const fetch = (u) => json(u.includes('/geocode/') ? { status: geocodeStatus, results: [] } : { status: 'ZERO_RESULTS', results: [] });
+  const { api } = load({ 'シート1': main }, { fetch });
+  const original = console.error;
+  console.error = () => {};
+  try { api.fetchPlaceData(true); } finally { console.error = original; }
+  return main.g.slice(1).map(r => r[11]);
+}
+
+test('自動取得: Geocodingが未許可でも止めず、次の行も処理する', () => {
+  assert.deepStrictEqual(geocodeRun('REQUEST_DENIED'), ['失敗:場所を特定できず', '失敗:場所を特定できず']);
+});
+
+test('自動取得: Geocodingの上限超過では処理を止める', () => {
+  assert.deepStrictEqual(geocodeRun('OVER_QUERY_LIMIT'), ['', '']);
 });
 
 console.log(`\n${passed} tests passed`);
