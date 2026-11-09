@@ -54,9 +54,17 @@
 | H | `hide` | `1` で非表示(手入力のみ。GASは書かない) |
 | I | `map_url` | マップURL |
 | J | `age_limit` | 年齢下限(旧ヘッダー名 `years` → `age_limit` に変更) |
+| K | `gtypes` | Google の元カテゴリ(例: `restaurant`)。手動仕分けの材料。HTMLは読まない |
+| L | `status` | 取得結果。空=未処理 / `成功` / `成功(写真なし)` / `失敗:理由` |
 
 HTMLが読むキー名: `type, title, img, category, comment, website, address, hide`、
 マップは `マップURL` / `map_url` / `mapUrl`、年齢は `対象年齢` / `age_limit` / `age`。
+
+### 保存リスト取り込み用シート「取り込み」
+Google Takeout の保存リストCSV(ヘッダー: タイトル/メモ/URL/タグ/コメント)を貼る。
+メニュー「📥 保存リストを取り込み」で、`シート1` に無いものだけ `type` 空で追加(メモ→comment、URL→map_url)。
+重複判定は URL 内の場所ID(`0x…:0x…`)→正規化した名称の順。結果は取り込み側の `取込状態` 列に `取込済` / `重複(ID)` / `重複(名称)` で記録。
+追加後に自動で情報取得が走り、`type` は空のまま(HTMLに出ない)。K列とD列を見て手動で仕分ける。
 
 ## 3. GAS(スプレッドシート紐づきスクリプト)
 
@@ -67,7 +75,12 @@ HTMLが読むキー名: `type, title, img, category, comment, website, address, 
 | `MAPS_API_KEY` | GAS「スクリプトプロパティ」 | Google Maps Platform。値はリポジトリ・ドキュメントに書かない |
 | `SEARCH_ENGINE_ID` | GAS「スクリプトプロパティ」 | Custom Search の cx |
 | フォーム送信トリガー | GASのトリガー設定 | `onFormSubmit(e)` |
-| カスタムメニュー「🌟プレゼン準備」 | スプレッドシート | `fixBrokenImages()` でリンク切れ画像を修復 |
+| カスタムメニュー「🌟プレゼン準備」 | スプレッドシート | 空欄取得 / 保存リスト取り込み / 失敗行を再試行 / リンク切れ画像を修復 |
+| 続き実行トリガー | GASが自動作成・自動削除 | `fetchPlaceDataContinue`。6分制限のため未処理が残る間、1分後に再実行(上限40回)。手動で作らない |
+| 写真アップロード済みの住所補完 | `fetchPlaceData` の `infoOnly` | Drive画像で住所が空の `go_out`/`eat_out` 行は、画像を変えず住所・公式サイトだけ補完(v1.34〜) |
+| 二重実行ロック | `LockService` | フォーム送信・メニュー・トリガーの同時実行を防ぐ |
+
+- 注意: K・L列は公開CSVにも出る。`status` にはAPIのエラー文(URL・キーが混ざりうる)を書かない設計。例外の詳細は実行ログにのみ出す。
 
 ## 4. 公開・セキュリティ確認結果(2026-11-05 時点)
 
