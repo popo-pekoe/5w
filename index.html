@@ -1,5 +1,5 @@
 <!-- ========================================== -->
-<!-- Version: 1.15 (あそぶ(play)タブ削除・お出かけを初期タブに) -->
+<!-- Version: 1.16 (「その他」タブ追加 / v1.15: あそぶ(play)タブ削除・お出かけを初期タブに) -->
 <!-- ========================================== -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -22,6 +22,7 @@
     .tab-btn.active.lunch { border-color: #b197fc; background-color: #f3d9fa; color: #862e9c; } 
     .tab-btn.active.go_out { border-color: #20c997; background-color: #e6fcf5; color: #087f5b; }
     .tab-btn.active.eat_out { border-color: #f06595; background-color: #fff0f6; color: #a61e4d; }
+    .tab-btn.active.other { border-color: #4dabf7; background-color: #e7f5ff; color: #1864ab; }
     
     .action-buttons { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
     .action-btn { font-size: 1.2rem; padding: 10px 20px; border-radius: 20px; border: none; color: white; cursor: pointer; font-family: inherit; font-weight: 800; transition: transform 0.1s, box-shadow 0.2s; }
@@ -145,6 +146,7 @@
         <button class="tab-btn eat" onclick="changeTab('eat')">🍔 たべる</button>
         <button class="tab-btn lunch" onclick="changeTab('lunch')">🍱 昼食</button>
         <button class="tab-btn eat_out" onclick="changeTab('eat_out')">🍽️ 外食</button>
+        <button class="tab-btn other" onclick="changeTab('other')">🎈 その他</button>
     </div>
 
     <div class="action-buttons">
@@ -212,7 +214,7 @@
         </div>
     </div>
 
-    <div class="version-display">v1.15</div>
+    <div class="version-display">v1.16</div>
 
 <script>
     const spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQERcgQgCQVotbFi5IGy_djP50D3c59AHsR6q5X2PE4Wzpeb8WDwiTvQV3kDF-Z7jFBnBhuxtu9CY7P/pub?output=csv';

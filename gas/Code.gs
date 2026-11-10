@@ -1,4 +1,4 @@
-// GAS Version 1.44 (v1.44: 写真保存(v1.41〜v1.43)とGeocoding修正を統合 / v1.41: Geocodingの拒否で取得全体を止めない(リモート側) / 写真v1.43: 新規取得の写真をその場でドライブに保存(URL失効対策・枚数は PLACE_PHOTO_COUNT) / 写真v1.42: 写真移行でドライブ容量不足・1日の上限を見分けて即停止 / 写真v1.41: Google写真URLをドライブへ移行 / v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存) / v1.40: メモとコメントを両方残す・コメント補完)
+// GAS Version 1.46 (v1.46: 「その他」タブ(type=other)を追加 / v1.45: 写真移行の続き実行が動かない不具合(トリガーでgetUiを呼んでいた)を修正・6分で強制終了されても続くよう先に予約・着手を止める時間を短縮 / v1.44: 写真保存(v1.41〜v1.43)とGeocoding修正を統合 / v1.41: Geocodingの拒否で取得全体を止めない(リモート側) / 写真v1.43: 新規取得の写真をその場でドライブに保存(URL失効対策・枚数は PLACE_PHOTO_COUNT) / 写真v1.42: 写真移行でドライブ容量不足・1日の上限を見分けて即停止 / 写真v1.41: Google写真URLをドライブへ移行 / v1.36: 仕分けシート・2段階の取り込み・座標(lat/lng)による重複判定 / v1.37: 距離50m(ID一致も距離で判定)・作業シートを空にするメニュー / v1.38: 取り込みを進める(途中なら続きから) / v1.39: 写真を探す(URLから画像の候補を選んで保存) / v1.40: メモとコメントを両方残す・コメント補完)
 // v1.34: 座標を地図の表示中心ではなく場所のピンから取得
 //
 // 取り込みの流れ:
@@ -23,7 +23,7 @@ const COL = { TYPE: 1, TITLE: 2, IMG: 3, CATEGORY: 4, COMMENT: 5, WEBSITE: 6, AD
 const NUM_COLS = 14;                   // シート1・仕分け共通のデータ列数(A〜N)
 const SORT_COLS = 15;                  // 仕分けは O 列(登録状態)まで
 const MAIN_HEADERS = ['type', 'title', 'img', 'category', 'comment', 'website', 'address', 'hide', 'map_url', 'age_limit', 'gtypes', 'status', 'lat', 'lng'];
-const TYPE_LIST = ['go_out', 'eat_out', 'eat', 'lunch'];
+const TYPE_LIST = ['go_out', 'eat_out', 'eat', 'lunch', 'other'];
 const TIME_LIMIT_MS = 270000;          // 1回の実行で新しい行に着手してよい時間(上限6分の手前で止める)
 const CONTINUE_HANDLER = 'fetchPlaceDataContinue';
 const MAX_CONTINUES = 40;              // 続き実行の安全上限(無限ループ防止)
@@ -1166,6 +1166,8 @@ function saveSelectedImages(sheetName, row, urls, mode) {
 // ==========================================
 const MIGRATE_HANDLER = 'migratePhotosContinue';
 const MAX_MIGRATE_CONTINUES = 150;     // 続き実行の安全上限
+const MIGRATE_TIME_LIMIT_MS = 180000;  // 移行は1行ごとにドライブへ書くため遅くなりうる。余裕を持って早めに新しい行への着手を止める
+const MIGRATE_SAFETY_TRIGGER_MS = 8 * 60 * 1000; // 6分で強制終了されても続くよう、開始時に先に予約しておく保険のトリガー
 const MIGRATE_ABORT_STREAK = 15;       // 一時的なエラーがこの行数つづいたら中断(制限・障害でむだに回らないように)
 const GOOGLE_PHOTO_RE = /^https?:\/\/lh\d*\.googleusercontent\.com\//i;
 const DEAD_HTTP_CODES = [400, 403, 404, 410];
@@ -1278,7 +1280,7 @@ function migrateSheets_(start) {
     for (let i = 0; i < data.length; i++) {
       const img = data[i][COL.IMG - 1];
       if (!hasGooglePhoto_(img)) continue;
-      if (Date.now() - start > TIME_LIMIT_MS) { timedOut = true; break; }
+      if (Date.now() - start > MIGRATE_TIME_LIMIT_MS) { timedOut = true; break; }
 
       const row = i + 2;
       const r = migrateRowPhotos_(folder, String(data[i][COL.TITLE - 1] || '写真'), img);
@@ -1307,8 +1309,8 @@ function migratePhotosContinue() {
 
 function migratePhotosToDrive(isBackground) {
   const background = isBackground === true;
-  const ui = SpreadsheetApp.getUi();
   if (!background) {
+    const ui = SpreadsheetApp.getUi(); // 画面が使えるのは手動実行のときだけ(トリガー実行で呼ぶと例外になる)
     const n = countGooglePhotoRows_();
     if (n === 0) { Browser.msgBox('移行する写真(Googleの写真URL)はありませんでした。'); return; }
     const ans = ui.alert('📦 写真をドライブへ移行',
@@ -1327,18 +1329,22 @@ function migratePhotosToDrive(isBackground) {
     clearMigrateTriggers_();
     if (!background) props.deleteProperty('MIGRATE_COUNT');
 
+    // 保険: 6分で強制終了されると後始末まで届かないので、開始時に続き実行を先に予約しておく(正常に終われば下で消す)
+    const cont = Number(props.getProperty('MIGRATE_COUNT') || 0);
+    if (cont < MAX_MIGRATE_CONTINUES) {
+      props.setProperty('MIGRATE_COUNT', String(cont + 1));
+      ScriptApp.newTrigger(MIGRATE_HANDLER).timeBased().after(MIGRATE_SAFETY_TRIGGER_MS).create();
+    }
+
     const r = migrateSheets_(Date.now());
     const left = countGooglePhotoRows_();
     const t = r.total;
 
+    clearMigrateTriggers_(); // 正常に終わったので、保険のトリガーを消す
     let again = false;
-    if (r.timedOut && !r.aborted && left > 0) {
-      const cont = Number(props.getProperty('MIGRATE_COUNT') || 0);
-      if (cont < MAX_MIGRATE_CONTINUES) {
-        props.setProperty('MIGRATE_COUNT', String(cont + 1));
-        ScriptApp.newTrigger(MIGRATE_HANDLER).timeBased().after(60 * 1000).create();
-        again = true;
-      }
+    if (r.timedOut && !r.aborted && left > 0 && cont < MAX_MIGRATE_CONTINUES) {
+      ScriptApp.newTrigger(MIGRATE_HANDLER).timeBased().after(60 * 1000).create();
+      again = true;
     }
     if (!again) props.deleteProperty('MIGRATE_COUNT');
 
@@ -1455,6 +1461,7 @@ function onFormSubmit(e) {
     if (choice.includes('昼食')) type = 'lunch';
     else if (choice.includes('お出かけ')) type = 'go_out';
     else if (choice.includes('外食')) type = 'eat_out';
+    else if (choice.includes('その他')) type = 'other';
 
     let finalPhotoUrl = '';
     let category = '';

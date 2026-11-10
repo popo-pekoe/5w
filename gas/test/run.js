@@ -72,15 +72,15 @@ function load(sheets, ui = {}) {
       }),
       flush() {},
       newDataValidation: () => ({ requireValueInList: () => ({ build: () => ({}) }) }),
-      getUi: () => ({
+      getUi: () => { if (ui.noUi) throw new Error('Cannot call SpreadsheetApp.getUi() from this context.'); return {
         alert: (t) => { log.push('alert:' + t); return ui.answer || 'YES'; },
         showModalDialog: (out, title) => { log.push('dialog:' + title); log.html = out.html; },
         ButtonSet: { YES_NO: 1, OK: 0 }, Button: { YES: 'YES' }
-      })
+      }; }
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k === 'MAPS_API_KEY' ? 'K' : null), setProperty() {}, deleteProperty() {} }) },
-    ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: () => ({ timeBased: () => ({ after: () => ({ create() {} }) }) }) },
+    ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: (h) => ({ timeBased: () => ({ after: (ms) => ({ create() { log.push('trigger:' + h + ':' + ms); } }) }) }) },
     Utilities: { sleep() {} },
     UrlFetchApp: {
       fetch: (u, o) => (ui.fetch ? ui.fetch(u, o) : { getResponseCode: () => 200, getHeaders: () => ({}), getContentText: () => '{}' }),
@@ -432,6 +432,22 @@ test('新規取得: Places の写真をその場でドライブに保存(失敗�
   // 2枚目の保存に失敗 → その1枚だけGoogleのURLのまま(あとで移行メニューで拾える)
   const part = run(true);
   assert.strictEqual(part.img, 'https://drive.google.com/thumbnail?sz=w800&id=D0,https://lh3.googleusercontent.com/grass-cs/R2=s1600-w800,https://drive.google.com/thumbnail?sz=w800&id=D1');
+});
+
+test('写真移行: トリガー(画面なし)実行でも動く・開始時に保険のトリガーを予約する', () => {
+  const G = 'https://lh3.googleusercontent.com/grass-cs/ok1=s1600-w800';
+  const blob = () => ({ getContentType: () => 'image/jpeg', getBytes: () => new Array(20000), setName() {} });
+  const drive = {
+    Access: { ANYONE_WITH_LINK: 1 }, Permission: { VIEW: 1 },
+    getFoldersByName: () => ({ hasNext: () => false }),
+    createFolder: () => ({ createFile: () => ({ setSharing() {}, getId: () => 'BG1' }) })
+  };
+  const main = new Sheet('シート1', [H, mk({ type: 'go_out', title: 'A', img: G, status: '成功' })]);
+  const { api, log } = load({ 'シート1': main }, { fetch: () => ({ getResponseCode: () => 200, getBlob: blob }), drive, noUi: true });
+  api.migratePhotosToDrive(true); // migratePhotosContinue と同じ呼び方
+  assert.strictEqual(main.g[1][2], 'https://drive.google.com/thumbnail?sz=w800&id=BG1');
+  assert.ok(log.includes('trigger:migratePhotosContinue:480000'), '開始時に保険のトリガーを予約: ' + log.join('|'));
+  assert.ok(!log.some(l => l.endsWith(':60000')), '終わったので1分後の続きは作らない');
 });
 
 test('写真移行: 対象がなければ何もしない', () => {

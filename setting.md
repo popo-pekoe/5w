@@ -33,6 +33,7 @@
 | `lunch` | 🍱 昼食 | 紫 | Custom Search(画像のみ) |
 | `go_out` | 🚗 お出かけ | 緑 | Google Maps API |
 | `eat_out` | 🍽️ 外食 | ピンク | Google Maps API |
+| `other` | 🎈 その他 | 青 | Google Maps API(`eat`/`lunch` 以外は地図で取得する既定の分岐) |
 
 ### 表示条件(`getAvailableItems`)
 タブの `type` 一致 / 画像が1枚以上 / `hide` が `1` でない / お気に入りフィルタ / 場所フィルタ。
